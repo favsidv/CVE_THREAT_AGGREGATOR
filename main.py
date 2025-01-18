@@ -7,17 +7,79 @@
 # ====================================
 
 """
-Ce module implémente un agrégateur de vulnérabilités CVE avec les fonctionnalités suivantes:
-    - Récupération asynchrone des flux RSS de l'ANSSI;
-    - Enrichissement des données via les APIs MITRE et EPSS;
-    - Mise en cache des données avec TTL (Time To Live);
-    - Interface web Flask pour la visualisation;
-    - Système de build automatisé pour les assets front-end.
+CVE_THREAT_AGGREGATOR
+====================
+
+Un agrégateur de vulnérabilités CVE optimisé pour les performances I/O avec gestion asynchrone.
+
+Description détaillée
+--------------------
+Ce module implémente un agrégateur complet de vulnérabilités CVE avec :
+
+* Récupération asynchrone des flux RSS de l'ANSSI
+* Enrichissement via les APIs MITRE et EPSS 
+* Cache mémoire avec TTL (Time To Live)
+* Interface web Flask pour la visualisation
+* Build automatisé des assets front-end
+
+:Auteur: Non spécifié
+:Version: 0.6
 """
 
 # ====================================
 # BIBLIOTHÈQUES
 # ====================================
+
+"""
+Dépendances
+===========
+
+Bibliothèques standard Python
+----------------------------
+* os
+    Opérations système et variables d'environnement
+* re  
+    Expressions régulières pour le traitement de texte
+* asyncio
+    Gestion de l'asynchrone
+* datetime
+    Manipulation des dates/durées via datetime, timedelta
+* pathlib
+    Manipulation avancée des chemins via Path
+* typing
+    Support du typage statique (List, Dict)
+
+Gestion HTTP asynchrone
+----------------------
+* aiohttp
+    Client HTTP asynchrone complet incluant :
+    - ClientTimeout : Configuration des timeouts
+    - ClientSession : Gestion des sessions HTTP
+
+Analyse de données
+-----------------
+* pandas 
+    Manipulation de données via DataFrame
+* feedparser
+    Parser pour flux RSS/Atom 
+
+Framework web
+------------
+* flask
+    Framework web léger avec :
+    - Flask : Application WSGI
+    - jsonify : Conversion JSON
+    - render_template : Moteur de templates
+
+Utilitaires
+-----------
+* subprocess
+    Exécution de commandes système
+* tqdm
+    Barres de progression avec versions :
+    - tqdm : Synchrone 
+    - tqdm_async, tqdm_asyncio : Asynchrones
+"""
 
 # --- Bibliothèques standard Python ---
 import os                                # Opérations sur le système de fichiers et variables d'environnement
@@ -54,29 +116,40 @@ from tqdm.asyncio import tqdm_asyncio       # Autre version asynchrone de tqdm
 # CONSTANTES SYSTÈME
 # ====================================
 
-_MAX_THREAD_POOL_SIZE = 500               # Limite maximale de connexions HTTP simultanées
-_IO_TIMEOUT_MS = ClientTimeout(total=10)  # Timeout des requêtes HTTP en secondes
-_MEM_CHUNK_SIZE = 100                     # Taille des lots pour le traitement par batch
+_MAX_THREAD_POOL_SIZE = 500              # Limite maximale de connexions HTTP simultanées
+_IO_TIMEOUT_MS = ClientTimeout(total=10) # Timeout des requêtes HTTP en secondes
+_MEM_CHUNK_SIZE = 100                    # Taille des lots pour le traitement par batch
 
 def _compute_threat_vector(raw_cvss_ptr: str) -> str:
     """
-    Convertit un score CVSS (Common Vulnerability Scoring System) en niveau de menace qualitatif.
+    Convertit un score CVSS en niveau de menace qualitatif.
     
-    Le CVSS est un score numérique de 0 à 10 qui évalue la gravité d'une vulnérabilité.
-    Cette fonction le traduit en catégories de risque plus facilement compréhensibles.
+    Le CVSS est un score numérique de 0 à 10 évaluant la gravité d'une vulnérabilité.
+    Traduit ce score en catégories de risque standardisées.
     
-    Arguments:
-        raw_cvss_ptr (str): Score CVSS brut à convertir
+    Paramètres
+    ----------
+    ``raw_cvss_ptr`` (str): Score CVSS brut à convertir
     
-    Returns:
-        str: Niveau de menace ('Faible', 'Moyenne', 'Élevée', 'Critique', ou 'n/a' en cas d'absence de score CVSS)
+    Retourne
+    --------
+    str: Niveau de menace ('Faible', 'Moyenne', 'Élevée', 'Critique', ou 'n/a')
     
-    Mapping des scores:
+    Mapping des scores
+    ----------------
         - 0.0 à 3.9  -> Faible   (0x01)
         - 4.0 à 6.9  -> Moyenne  (0x02)
         - 7.0 à 8.9  -> Élevée   (0x03)
         - 9.0 à 10.0 -> Critique (0x04)
         - Erreur     -> n/a      (0xFF)
+            
+    Exemple d'utilisation
+    --------------------
+    ::
+    
+        result = _compute_threat_vector('7.5') # Retourne 'Élevée'
+        result = _compute_threat_vector('9.1') # Retourne 'Critique'
+        result = _compute_threat_vector('err') # Retourne 'n/a'
     """
     try:
         _threat_level_reg = float(raw_cvss_ptr)
@@ -101,23 +174,112 @@ def _compute_threat_vector(raw_cvss_ptr: str) -> str:
 
 class CVE_DataProcessor_Engine:
     """
-    Moteur principal de traitement des CVE avec architecture pipeline et système de cache.
+    Moteur de traitement des CVE avec architecture pipeline et cache.
     
-    Cette classe gère:
-        - La récupération asynchrone des données CVE;
-        - Le parsing des flux RSS de l'ANSSI;
-        - L'enrichissement via les APIs MITRE et EPSS;
-        - La mise en cache des données fréquemment accédées.
+    Architecture asynchrone optimisée pour les performances avec pattern Context Manager
+    pour la gestion automatique des ressources réseau et système de cache multi-niveaux.
     
-    Attributs:
-        _net_io_handler (ClientSession): Gestionnaire de sessions HTTP;
-        _thread_mutex (asyncio.Semaphore): Sémaphore pour limiter les connexions simultanées;
-        _l1_mitre_cache (dict): Cache niveau 1 pour les données MITRE;
-        _l1_epss_cache (dict): Cache niveau 1 pour les scores EPSS;
-        _net_sock (aiohttp.TCPConnector): Connecteur TCP avec cache DNS.
+    Attributs
+    ---------
+        ``_net_io_handler`` (ClientSession): Gestionnaire de sessions HTTP asynchrones
+        ``_thread_mutex`` (asyncio.Semaphore): Sémaphore limitant les connexions simultanées
+        ``_l1_mitre_cache`` (dict): Cache niveau 1 pour données MITRE
+        ``_l1_epss_cache`` (dict): Cache niveau 1 pour scores EPSS
+        ``_net_sock`` (aiohttp.TCPConnector): Connecteur TCP avec cache DNS
+        
+    Architecture technique
+    ----------------------
+    Le moteur implémente plusieurs optimisations:
+        - Cache DNS avec TTL de 5 minutes 
+        - Pooling de connexions HTTP limité à 500 connexions
+        - Traitement par lots des CVEs (100 par batch)
+        - Cache L1 pour les données MITRE et EPSS
+        - Timeouts configurables pour les requêtes HTTP
+        
+    Pipeline de traitement
+    ----------------------
+    1. Récupération asynchrone des flux RSS ANSSI
+    2. Extraction et parsing des CVEs mentionnées
+    3. Enrichissement parallèle via MITRE et EPSS
+    4. Mise en cache des données fréquemment accédées
+        
+    Exemple d'utilisation
+    ---------------------
+    ::
+
+        async with CVE_DataProcessor_Engine() as engine:
+            # Traitement d'un lot de CVEs
+            cve_data = await engine._process_cve_batch(feed_entries)
+            # Enrichissement via MITRE
+            mitre_data = await engine._fetch_mitre_metadata(cve_ids)
+            # Récupération des scores EPSS
+            epss_scores = await engine._fetch_epss_scores(cve_ids)
+            
+    Format des caches
+    -----------------
+        Cache MITRE::
+
+            {
+                'CVE-2024-1234': {
+                    'cvss_score': '7.5',
+                    'description': '...',
+                    'cwe_desc': 'CWE-119'
+                }
+            }
+
+        Cache EPSS::
+
+            {
+                'CVE-2024-1234': 0.75,
+                'CVE-2024-5678': 0.32
+            }
+            
+    Voir aussi
+    ----------
+        - ``MemCache``: Système de cache avec TTL
+        - ``aiohttp.ClientSession``: Gestion des sessions HTTP
+        - ``asyncio.Semaphore``: Limitation des connexions
     """
 
     def __init__(self):
+        """
+        Initialise une nouvelle instance du moteur de traitement CVE.
+        
+        Configure les registres système pour le traitement asynchrone des données
+        et initialise les différents caches avec leurs valeurs par défaut.
+        
+        Attributs initialisés
+        --------------------
+        ``_net_io_handler`` : None
+            Gestionnaire de sessions HTTP, initialisé lors du context enter
+
+        ``_thread_mutex`` : asyncio.Semaphore
+            Sémaphore limitant à 500 connexions simultanées
+        
+        ``_l1_mitre_cache`` : dict
+            Cache vide pour les métadonnées MITRE
+        
+        ``_l1_epss_cache`` : dict
+            Cache vide pour les scores EPSS
+        
+        ``_net_sock`` : None
+            Socket réseau, initialisé lors du context enter
+
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            # Création d'une nouvelle instance
+            engine = CVE_DataProcessor_Engine()
+            # Les ressources réseau ne sont pas encore initialisées
+            # Utiliser avec un context manager pour l'initialisation
+            async with engine as initialized_engine:
+                await initialized_engine._process_cve_batch(entries)
+        
+        Note
+        ----
+        Cette classe doit être utilisée avec un context manager.
+        """
         # Initialisation des registres système
         self._net_io_handler: ClientSession = None
         self._thread_mutex = asyncio.Semaphore(_MAX_THREAD_POOL_SIZE)
@@ -127,11 +289,51 @@ class CVE_DataProcessor_Engine:
 
     async def __aenter__(self):
         """
-        Initialise la session HTTP avec les paramètres optimaux:
-            - Cache DNS activé pour réduire la latence;
-            - Pool de connexions limité;
-            - Headers HTTP standards;
-            - SSL désactivé pour les performances (attention en production).
+        Initialise la session HTTP asynchrone et les ressources réseau.
+        
+        Configure et établit une session HTTP optimisée pour les performances
+        avec gestion du cache DNS et du pooling de connexions.
+        
+        Configuration
+        ------------
+        Session HTTP :
+            - Cache DNS activé avec TTL de 5 minutes
+            - Pool de connexions limité à 500
+            - SSL désactivé pour les performances
+            - Headers HTTP standards
+        
+        Connecteur TCP
+        -------------
+            - ``limit``: 500 connexions maximum
+            - ``ttl_dns_cache``: 300 secondes
+            - ``use_dns_cache``: Activé
+            - ``ssl``: Désactivé
+        
+        Headers HTTP
+        -----------
+        ::
+        
+            {
+                'User-Agent': 'Mozilla/5.0',
+                'Accept': 'application/json'
+            }
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            async with CVE_DataProcessor_Engine() as engine:
+                # La session HTTP est maintenant initialisée
+                # avec la configuration optimale
+                await engine._process_cve_batch(entries)
+        
+        Retourne
+        --------
+        self: L'instance configurée pour une utilisation dans le context manager
+        
+        Note
+        ----
+        Le SSL est désactivé pour les performances. À adapter en production.
         """
         if not self._net_sock:
             self._net_sock = aiohttp.TCPConnector(
@@ -152,32 +354,94 @@ class CVE_DataProcessor_Engine:
 
     async def __aexit__(self, _exc_type, _exc_val, _exc_tb):
         """
-        Nettoyage des ressources réseau à la sortie du context manager.
-        Ferme proprement la session HTTP pour éviter les fuites de ressources.
+        Nettoie les ressources réseau à la sortie du context manager.
+        
+        Assure la fermeture propre de la session HTTP et la libération
+        des ressources réseau pour éviter les fuites mémoire.
+        
+        Paramètres
+        ----------
+        ``_exc_type`` (Type[BaseException]): Type de l'exception si elle existe
+        ``_exc_val`` (BaseException): Instance de l'exception si elle existe
+        ``_exc_tb`` (TracebackType): Traceback de l'exception si elle existe
+        
+        Actions réalisées
+        ----------------
+        - Fermeture de la session HTTP si elle existe
+        - Libération des connexions du pool
+        - Nettoyage du cache DNS
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            async with CVE_DataProcessor_Engine() as engine:
+                # Le context manager gère automatiquement les ressources
+                await engine._process_cve_batch(entries)
+            # À la sortie du bloc, __aexit__ est appelé automatiquement
+            # pour nettoyer les ressources
+        
+        Note
+        ----
+        Les paramètres d'exception ne sont pas utilisés car toutes les 
+        exceptions sont propagées au code appelant.
         """
         if self._net_io_handler:
             await self._net_io_handler.close()
 
     def _decode_rss_stream(self, feed_addr: str) -> List[Dict]:
         """
-        Décode et parse un flux RSS pour en extraire les informations pertinentes.
+        Décode et analyse un flux RSS pour en extraire les CVEs.
         
-        Cette méthode:
-        1. Parse le flux RSS avec feedparser;
-        2. Nettoie les titres en retirant les parenthèses;
-        3. Extrait les métadonnées essentielles (titre, lien, type, date);
-        4. Standardise le format des dates.
+        Parse un flux RSS de l'ANSSI et extrait les informations pertinentes
+        en nettoyant et standardisant les données.
+
+        Paramètres
+        ----------
+        ``feed_addr`` (str): URL du flux RSS à analyser
+
+        Retourne
+        --------
+        List[Dict]: Liste des entrées RSS normalisées contenant:
+            - title: Titre nettoyé (parenthèses retirées)
+            - link: URL du bulletin
+            - type: "Alerte" ou "Avis" selon l'URL
+            - date: Date de publication (format ISO)
+
+        Traitement effectué
+        ------------------
+        1. Parse du flux RSS avec feedparser
+        2. Nettoyage des titres (retrait des parenthèses)
+        3. Détection du type selon l'URL
+        4. Standardisation des dates au format ISO
         
-        Arguments:
-            feed_addr (str): URL du flux RSS à parser
-            
-        Returns:
-            List[Dict]: Liste de dictionnaires contenant les entrées du flux
-                        avec les champs: title, link, type, date
+        Format de sortie
+        ---------------
+        ::
+
+            [
+                {
+                    'title': 'CERTFR-2024-ALE-001 Python vulnerability',
+                    'link': 'https://cert.ssi.gouv.fr/alerte/CERTFR-2024-ALE-001',
+                    'type': 'Alerte',
+                    'date': '2024-01-18'
+                },
+                { ... }
+            ]
         
-        Note:
-            Le type est déterminé automatiquement selon la présence du mot "alerte"
-            dans l'URL du bulletin.
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            feed_url = "https://www.cert.ssi.gouv.fr/alerte/feed"
+            entries = engine._decode_rss_stream(feed_url)
+            for entry in entries:
+                print(f"Title: {entry['title']}, Type: {entry['type']}")
+
+        Note
+        ----
+        Le type est déterminé automatiquement selon la présence du mot "alerte"
+        dans l'URL du bulletin.
         """
         _raw_feed_buf = feedparser.parse(feed_addr)
         return [{
@@ -189,21 +453,38 @@ class CVE_DataProcessor_Engine:
 
     async def _fetch_remote_data(self, target_addr: str) -> Dict:
         """
-        Récupère des données depuis une API distante avec gestion des erreurs.
+        Récupère des données depuis une API distante de manière asynchrone.
         
-        Cette méthode implémente:
-            - Limitation du nombre de requêtes simultanées via un sémaphore;
-            - Gestion des timeouts et des erreurs réseau;
-            - Décodage automatique du JSON.
+        Effectue une requête HTTP GET avec gestion des erreurs et des timeouts.
+        Utilise un sémaphore pour limiter le nombre de connexions simultanées.
         
-        Arguments:
-            target_addr (str): URL de l'API à interroger
-            
-        Returns:
-            Dict: Données JSON récupérées ou dictionnaire vide en cas d'erreur
-            
-        Note:
-            Utilise le sémaphore _thread_mutex pour éviter la surcharge du serveur distant
+        Paramètres
+        ----------
+        ``target_addr`` (str): URL de l'API à interroger
+        
+        Retourne
+        --------
+        Dict: Réponse JSON de l'API ou dictionnaire vide en cas d'erreur
+        
+        Gestion des erreurs
+        ------------------
+        - Timeout de connexion : retourne {}
+        - Erreur HTTP : retourne {} si status != 200
+        - Erreur JSON : retourne {}
+        - Autres erreurs : retourne {}
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            url = "https://cveawg.mitre.org/api/cve/CVE-2024-1234"
+            data = await engine._fetch_remote_data(url)
+            if data:
+                print(f"Description: {data.get('descriptions', [{}])[0].get('value')}")
+        
+        Note
+        ----
+        Utilise le sémaphore ``_thread_mutex`` pour limiter à 500 connexions simultanées.
         """
         async with self._thread_mutex:
             try:
@@ -212,23 +493,64 @@ class CVE_DataProcessor_Engine:
             except:
                 return {}
 
-    async def process_cve_batch(self, feed_entries: List[Dict]) -> List[Dict]:
+    async def _process_cve_batch(self, feed_entries: List[Dict]) -> List[Dict]:
         """
-        Traite un lot de CVEs en parallèle en suivant une architecture pipeline.
+        Traite un lot de CVEs en parallèle avec enrichissement des données.
         
-        Pipeline de traitement:
-        1. Extraction parallèle des CVEs depuis les URLs;
-        2. Validation des données reçues;
-        3. Enrichissement et normalisation des informations.
+        Implémente un pipeline de traitement asynchrone pour optimiser les performances
+        et enrichir les données CVE avec les informations MITRE et EPSS.
         
-        Arguments:
-            feed_entries (List[Dict]): Liste des entrées RSS à traiter
+        Paramètres
+        ----------
+        ``feed_entries`` (List[Dict]): Liste des entrées RSS contenant :
+            - title: Titre du bulletin 
+            - link: URL du bulletin
+            - type: Type de bulletin (Alerte/Avis)
+            - date: Date de publication
+
+        Retourne
+        --------
+        List[Dict]: Liste des CVEs enrichies contenant : 
+            - cve_id: Identifiant CVE
+            - title: Titre du bulletin
+            - type: Type de bulletin
+            - date: Date de publication
+            - link: URL du bulletin
+        
+        Pipeline de traitement
+        ---------------------
+        1. Création des tâches asynchrones pour chaque entrée
+        2. Récupération parallèle des données JSON
+        3. Validation et nettoyage des données
+        4. Extraction des CVEs et métadonnées
+        
+        Validation des données
+        --------------------
+        - Vérification de la présence des données JSON
+        - Validation des champs 'cves' et 'name'
+        - Nettoyage des données manquantes
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            feed_entries = [
+                {
+                    'title': 'CERTFR-2024-ALE-001',
+                    'link': 'https://cert.ssi.gouv.fr/alerte/CERTFR-2024-ALE-001',
+                    'type': 'Alerte',
+                    'date': '2024-01-18'
+                }
+            ]
             
-        Returns:
-            List[Dict]: Liste des CVEs traitées avec leurs métadonnées
-            
-        Note:
-            Utilise asyncio.gather pour le traitement parallèle optimal
+            async with CVE_DataProcessor_Engine() as engine:
+                cves = await engine._process_cve_batch(feed_entries)
+                for cve in cves:
+                    print(f"CVE: {cve['cve_id']}, Type: {cve['type']}")
+        
+        Note
+        ----
+        Utilise ``asyncio.gather`` pour le traitement parallèle optimal.
         """
         # Création des tâches asynchrones pour chaque entrée
         _task_queue = [self._fetch_remote_data(f"{_entry_ptr['link']}json") 
@@ -252,26 +574,64 @@ class CVE_DataProcessor_Engine:
                 })
         return _cve_buf
 
-    async def fetch_mitre_metadata(self, cve_id_array: List[str]) -> Dict:
+    async def _fetch_mitre_metadata(self, cve_id_array: List[str]) -> Dict:
         """
-        Récupère les métadonnées MITRE pour une liste de CVEs avec système de cache.
+        Récupère les métadonnées MITRE pour une liste de CVEs.
         
-        Fonctionnement:
-        1. Vérifie les données présentes dans le cache L1;
-        2. Récupère en parallèle les données manquantes;
-        3. Met à jour le cache avec les nouvelles données;
-        4. Retourne l'ensemble des données (cache + nouvelles).
+        Optimise la récupération des données en utilisant un cache L1 et un traitement par lots
+        pour réduire la charge sur l'API MITRE et améliorer les performances.
         
-        Arguments:
-            cve_id_array (List[str]): Liste des identifiants CVE à rechercher
+        Paramètres
+        ----------
+        ``cve_id_array`` (List[str]): Liste d'identifiants CVE à enrichir
             
-        Returns:
-            Dict: Dictionnaire {cve_id: metadata} pour chaque CVE
-            
-        Optimisations:
-            - Traitement par lots pour réduire la charge serveur;
-            - Cache L1 pour éviter les requêtes redondantes;
-            - Récupération parallèle des données manquantes.
+        Retourne
+        --------
+        Dict: Métadonnées pour chaque CVE avec la structure :
+            - cvss_score: Score CVSS v3.1
+            - description: Description de la vulnérabilité
+            - cwe_desc: Type de vulnérabilité (CWE)
+            - vendor: Éditeur affecté
+            - product: Produit affecté
+            - versions: Versions vulnérables
+        
+        Pipeline de traitement
+        --------------------
+        1. Vérification des données en cache L1
+        2. Identification des CVEs manquantes
+        3. Récupération par lots des données manquantes
+        4. Mise à jour du cache avec les nouvelles données
+        5. Fusion des données (cache + nouvelles)
+        
+        Format de retour
+        ---------------
+        ::
+
+            {
+                'CVE-2024-1234': {
+                    'cvss_score': '7.5',
+                    'description': 'Buffer overflow...',
+                    'cwe_desc': 'CWE-119',
+                    'vendor': 'Example Corp',
+                    'product': 'ExampleApp',
+                    'versions': '1.0, 1.1, 1.2'
+                },
+                'CVE-2024-5678': { ... }
+            }
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            cve_ids = ['CVE-2024-1234', 'CVE-2024-5678']
+            async with CVE_DataProcessor_Engine() as engine:
+                metadata = await engine._fetch_mitre_metadata(cve_ids)
+                for cve_id, data in metadata.items():
+                    print(f"{cve_id}: CVSS={data['cvss_score']}")
+        
+        Note
+        ----
+        Le cache L1 est persistant pendant toute la durée de vie de l'instance.
         """
         # Identification des CVEs non présentes en cache
         _uncached_cve_ptrs = [_cve_id for _cve_id in cve_id_array 
@@ -299,20 +659,59 @@ class CVE_DataProcessor_Engine:
     
     def _process_mitre_block(self, data_block: Dict) -> Dict:
         """
-        Traite et normalise un bloc de données MITRE.
+        Parse et normalise un bloc de données MITRE.
+
+        Extrait et structure les informations importantes d'un bloc de données
+        brutes MITRE en un format standardisé et cohérent.
         
-        Cette méthode extrait les informations importantes d'un bloc de données MITRE:
-            - Score CVSS et métriques associées;
-            - Description de la vulnérabilité;
-            - Type de vulnérabilité (CWE);
-            - Informations sur le vendeur et le produit;
-            - Versions affectées.
-        
-        Arguments:
-            data_block (Dict): Bloc de données MITRE brut
+        Paramètres
+        ----------
+        ``data_block`` (Dict): Données brutes de l'API MITRE contenant :
+            - containers: Conteneur principal des données
+            - descriptions: Description textuelle
+            - metrics: Scores et métriques
+            - affected: Informations sur les systèmes affectés
             
-        Returns:
-            Dict: Données normalisées avec les champs standards
+        Retourne
+        --------
+        Dict: Données normalisées contenant :
+            - cvss_score: Score CVSS de base
+            - description: Description de la vulnérabilité
+            - cwe_desc: Type de vulnérabilité (CWE)
+            - vendor: Éditeur du produit
+            - product: Nom du produit
+            - versions: Liste des versions affectées
+        
+        Structure de données
+        ------------------
+        Entrée::
+
+            {
+                'containers': {
+                    'cna': {
+                        'metrics': [{'cvssV3_1': {...}}],
+                        'descriptions': [{'value': '...'}],
+                        'affected': [{
+                            'vendor': '...',
+                            'product': '...',
+                            'versions': [...]
+                        }]
+                    }
+                }
+            }
+
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            raw_data = await self._fetch_remote_data(mitre_url)
+            if raw_data:
+                processed = self._process_mitre_block(raw_data)
+                print(f"CVSS Score: {processed['cvss_score']}")
+        
+        Note
+        ----
+        Retourne 'n/a' pour les champs non trouvés ou invalides.
         """
         # Extraction des pointeurs vers les différentes sections
         _cna_ptr = data_block['containers'].get('cna', {})
@@ -330,25 +729,56 @@ class CVE_DataProcessor_Engine:
                         for v in _affected_ptr.get('versions', []))
         }
 
-    async def fetch_epss_scores(self, cve_id_array: List[str]) -> Dict:
+    async def _fetch_epss_scores(self, cve_id_array: List[str]) -> Dict:
         """
-        Récupère les scores EPSS (Exploit Prediction Scoring System) pour une liste de CVEs.
+        Récupère les scores EPSS pour une liste de CVEs.
         
-        L'EPSS est un système qui prédit la probabilité d'exploitation d'une vulnérabilité.
+        L'EPSS (Exploit Prediction Scoring System) prédit la probabilité 
+        d'exploitation active d'une vulnérabilité dans les 30 jours.
         
-        Fonctionnalités:
-            - Utilisation du cache L1 pour optimiser les requêtes;
-            - Gestion des erreurs réseau;
-            - Traitement en lot des CVEs.
+        Paramètres
+        ----------
+        ``cve_id_array`` (List[str]): Liste des identifiants CVE à évaluer
         
-        Arguments:
-            cve_id_array (List[str]): Liste des identifiants CVE
-            
-        Returns:
-            Dict: Dictionnaire {cve_id: epss_score} pour chaque CVE
-            
-        Note:
-            Les scores sont normalisés entre 0 et 1, 'n/a' en cas d'absence de score EPSS ou d'erreur
+        Retourne
+        --------
+        Dict: Scores EPSS normalisés entre 0 et 1 pour chaque CVE
+            - Clé: Identifiant CVE
+            - Valeur: Score float ou 'n/a' si non disponible
+        
+        Traitement des données
+        --------------------
+        1. Vérification du cache L1
+        2. Construction de la requête pour les CVEs manquantes
+        3. Appel à l'API FIRST.org
+        4. Mise à jour du cache avec les nouveaux scores
+        5. Fusion des données (cache + nouvelles)
+        
+        Format de retour
+        ---------------
+        ::
+
+            {
+                'CVE-2024-1234': 0.75,  # 75% de chance d'exploitation
+                'CVE-2024-5678': 0.32,  # 32% de chance d'exploitation
+                'CVE-2024-9012': 'n/a'  # Score non disponible
+            }
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            cve_ids = ['CVE-2024-1234', 'CVE-2024-5678']
+            async with CVE_DataProcessor_Engine() as engine:
+                scores = await engine._fetch_epss_scores(cve_ids)
+                for cve_id, score in scores.items():
+                    if score != 'n/a':
+                        print(f"{cve_id}: {score*100:.1f}% risk")
+        
+        Note
+        ----
+        Le cache L1 est persistant durant toute la durée de vie de l'instance.
+        Les scores sont normalisés entre 0 (risque minimal) et 1 (risque maximal).
         """
         # Vérification du cache
         _uncached_cve_ptrs = [_cve_id for _cve_id in cve_id_array 
@@ -385,23 +815,88 @@ class MemCache:
     """
     Gestionnaire de cache mémoire avec système de Time-To-Live (TTL).
     
-    Fonctionnalités:
-        - Stockage en mémoire avec durée de vie limitée;
-        - Thread-safe avec verrous asyncio;
-        - Validation automatique des données périmées.
+    Implémente un cache en mémoire thread-safe avec expiration automatique
+    des données basée sur un TTL configurable.
     
-    Attributs:
-        _data_ptr: Données en cache
-        _timestamp: Horodatage de dernière mise à jour
-        _ttl: Durée de vie des données
-        _mutex: Verrou pour accès concurrent
+    Attributs
+    ---------
+    ``_data_ptr`` (Any): 
+        Données stockées en cache
+    ``_timestamp`` (datetime): 
+        Horodatage de dernière mise à jour
+    ``_ttl`` (timedelta): 
+        Durée de vie des données en cache
+    ``_mutex`` (asyncio.Lock):
+        Verrou pour l'accès concurrent
+    
+    Fonctionnalités
+    --------------
+    - Stockage en mémoire avec durée de vie limitée
+    - Vérification automatique de la validité
+    - Thread-safe via verrous asyncio
+    - Interface _get_or_fetch pour récupération/actualisation
+    
+    Algorithme
+    ---------
+    1. Vérification de la validité des données
+    2. Si invalide ou expirées :
+        - Appel de la fonction de récupération
+        - Mise à jour du timestamp
+        - Stockage des nouvelles données
+    3. Sinon : retour des données du cache
+    
+    Exemple d'utilisation
+    --------------------
+    ::
+
+        # Création d'un cache avec TTL de 60 minutes
+        cache = MemCache(ttl_min=60)
+        
+        # Définition de la fonction de récupération
+        async def fetch_data():
+            return {'key': 'value'}
+        
+        # Utilisation du cache
+        data = await cache._get_or_fetch(fetch_data)
+    
+    Note
+    ----
+    Les données sont considérées périmées quand:
+        - Le cache est vide
+        - Le timestamp est None
+        - Le TTL est dépassé
     """
     def __init__(self, ttl_min=60):
         """
-        Initialise le cache avec une durée de vie en minutes.
+        Initialise une nouvelle instance du cache mémoire.
         
-        Arguments:
-            ttl_min (int): Durée de vie en minutes (défaut: 60)
+        Crée un cache avec une durée de vie configurable pour les données.
+        Le cache est initialement vide jusqu'à la première récupération.
+        
+        Paramètres
+        ----------
+        ``ttl_min`` (int): Durée de vie des données en minutes (défaut: 60)
+            
+        Attributs initialisés
+        -------------------
+        - ``_data_ptr``: None - Données en cache
+        - ``_timestamp``: None - Horodatage dernière mise à jour
+        - ``_ttl``: timedelta - Durée de vie configurée
+        - ``_mutex``: asyncio.Lock() - Verrou pour l'accès concurrent
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            # Cache avec TTL de 30 minutes
+            cache_court = MemCache(ttl_min=30)
+            
+            # Cache avec TTL par défaut (60 minutes)
+            cache_defaut = MemCache()
+        
+        Note
+        ----
+        Le TTL est converti en timedelta lors de l'initialisation.
         """
         self._data_ptr = None
         self._timestamp = None
@@ -410,10 +905,36 @@ class MemCache:
 
     def _check_validity(self):
         """
-        Vérifie si les données en cache sont toujours valides.
+        Vérifie si les données en cache sont valides.
         
-        Returns:
-            bool: True si les données sont valides, False sinon
+        Détermine si les données actuellement en cache peuvent être utilisées
+        en vérifiant leur existence et leur durée de vie.
+        
+        Retourne
+        --------
+        bool: État de validité du cache
+            - True: Données valides et utilisables
+            - False: Cache vide ou données expirées
+        
+        Tests effectués
+        --------------
+        1. Présence des données (_data_ptr not None)
+        2. Présence du timestamp (_timestamp not None)
+        3. TTL non dépassé (now - _timestamp < _ttl)
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            if self._check_validity():
+                return self._data_ptr
+            else:
+                # Récupérer de nouvelles données
+                return await self._update_cache()
+        
+        Note
+        ----
+        Les données sont considérées invalides si l'un des tests échoue.
         """
         if not self._data_ptr or not self._timestamp:
             return False
@@ -423,32 +944,99 @@ class MemCache:
         """
         Met à jour le cache avec de nouvelles données.
         
-        Arguments:
-            new_data: Nouvelles données à mettre en cache
+        Actualise le contenu du cache avec les nouvelles données fournies
+        et met à jour l'horodatage au moment de l'écriture.
+        
+        Paramètres
+        ----------
+        ``new_data`` (Any): Nouvelles données à mettre en cache
+            
+        Opérations réalisées
+        -------------------
+        1. Remplacement des données précédentes
+        2. Mise à jour de l'horodatage
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            data = await fetch_new_data()
+            self._update_cache(data)
+            # Le TTL est remis à zéro à partir de maintenant
+        
+        Note
+        ----
+        L'appel à cette méthode réinitialise le TTL des données.
         """
         self._data_ptr = new_data
         self._timestamp = datetime.now()
 
     def _get_cache(self):
         """
-        Récupère les données du cache.
+        Récupère les données actuellement en cache.
         
-        Returns:
-            Les données en cache ou None si vide
+        Retourne les données brutes du cache sans vérification de validité.
+        Cette méthode interne est utilisée après la validation du TTL.
+        
+        Retourne
+        --------
+        Any: Données stockées dans le cache ou None si vide
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            if self._check_validity():
+                return self._get_cache()
+            else:
+                return None
+        
+        Note
+        ----
+        Cette méthode ne vérifie pas la validité des données,
+        cela doit être fait avant l'appel avec _check_validity().
         """
         return self._data_ptr
 
-    async def get_or_fetch(self, fetch_func):
+    async def _get_or_fetch(self, fetch_func):
         """
         Récupère les données du cache ou les actualise si nécessaire.
         
-        Cette méthode est thread-safe grâce au mutex asyncio.
+        Vérifie la validité du cache et soit retourne les données existantes,
+        soit appelle la fonction de récupération pour actualiser le cache.
         
-        Arguments:
-            fetch_func: Fonction asynchrone à appeler pour actualiser les données
-            
-        Returns:
-            Les données du cache (existantes ou nouvellement récupérées)
+        Paramètres
+        ----------
+        ``fetch_func`` (Callable): Fonction asynchrone de récupération des données
+            Doit être une coroutine sans paramètres retournant les nouvelles données
+        
+        Retourne
+        --------
+        Any: Données du cache (existantes ou nouvellement récupérées)
+        
+        Processus de récupération
+        ----------------------
+        1. Acquisition du verrou (_mutex)
+        2. Vérification de la validité du cache
+        3. Si valide : retour des données existantes
+        4. Si invalide :
+            - Appel de fetch_func()
+            - Mise à jour du cache
+            - Retour des nouvelles données
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            async def fetch_data():
+                return await api.get_latest_data()
+                
+            cache = MemCache(ttl_min=30)
+            data = await cache._get_or_fetch(fetch_data)
+        
+        Note
+        ----
+        Thread-safe grâce au verrou asyncio.Lock pour les accès concurrents.
         """
         async with self._mutex:
             if self._check_validity():
@@ -460,22 +1048,55 @@ class MemCache:
 
 # Initialisation du cache système global
 _SYS_CACHE = MemCache()
-
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+#######################################_check_build_status fait mais pas le reste#######################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
 def _check_build_status():
     """
     Vérifie si une reconstruction des assets front-end est nécessaire.
     
-    Cette fonction compare les timestamps des fichiers sources et du bundle
-    pour déterminer si une reconstruction est requise.
+    Compare les timestamps des fichiers sources et du bundle pour déterminer
+    si une reconstruction est requise suite à des modifications.
     
-    Returns:
-        bool: True si une reconstruction est nécessaire, False sinon
+    Retourne
+    --------
+    bool: État de la reconstruction
+        - True: Reconstruction nécessaire
+        - False: Bundle à jour
+    
+    Critères de vérification
+    ----------------------
+    1. Existence de bundle.js
+    2. Comparaison des timestamps:
+        - Fichiers sources (src/)
+        - Bundle (static/dist/bundle.js)
+    
+    Exemple d'utilisation
+    --------------------
+    ::
+
+        if _check_build_status():
+            _execute_build_process()
+        else:
+            print("Assets up-to-date")
+    
+    Note
+    ----
+    Le bundle est considéré périmé si :
+        - Il n'existe pas
+        - Un fichier source est plus récent
     """
     if not os.path.exists('static/dist/bundle.js'):
         return True
         
     _bundle_timestamp = os.path.getmtime('static/dist/bundle.js')
-    _src_timestamp = get_latest_modification_time('src')
+    _src_timestamp = _get_latest_modification_time('src')
     
     return _src_timestamp > _bundle_timestamp
 
@@ -554,7 +1175,7 @@ async def _handle_data_request():
         En cas d'erreur, retourne les dernières données valides du cache
     """
     try:
-        return jsonify(await _SYS_CACHE.get_or_fetch(_fetch_all_data))
+        return jsonify(await _SYS_CACHE._get_or_fetch(_fetch_all_data))
     except Exception as _err_ptr:
         print(f"[DATA_ERROR]: {_err_ptr}")
         return jsonify(_SYS_CACHE._get_cache() or [])
@@ -588,7 +1209,7 @@ async def _fetch_all_data():
     async with CVE_DataProcessor_Engine() as _engine_ptr:
         for _feed_addr in _RSS_ADDR_ARRAY:
             _feed_entries = _engine_ptr._decode_rss_stream(_feed_addr)
-            _cve_blocks = await _engine_ptr.process_cve_batch(_feed_entries)
+            _cve_blocks = await _engine_ptr._process_cve_batch(_feed_entries)
             _total_cve_count += len(_cve_blocks)
     
     print(f"\n[MEM_ALLOC]: Allocating for {_total_cve_count} CVEs\n")
@@ -645,7 +1266,7 @@ async def _process_data_chunk(feed_addr: str, prog_monitor) -> pd.DataFrame:
         _feed_entries = _engine_ptr._decode_rss_stream(feed_addr)
         
         # Stage 2: Extraction des CVEs mentionnées
-        _cve_blocks = await _engine_ptr.process_cve_batch(_feed_entries)
+        _cve_blocks = await _engine_ptr._process_cve_batch(_feed_entries)
         if not _cve_blocks:
             return pd.DataFrame()
             
@@ -654,8 +1275,8 @@ async def _process_data_chunk(feed_addr: str, prog_monitor) -> pd.DataFrame:
         
         # Stage 3.1: Enrichissement parallèle MITRE/EPSS
         _mitre_data, _epss_data = await asyncio.gather(
-            _engine_ptr.fetch_mitre_metadata(_cve_id_array),
-            _engine_ptr.fetch_epss_scores(_cve_id_array)
+            _engine_ptr._fetch_mitre_metadata(_cve_id_array),
+            _engine_ptr._fetch_epss_scores(_cve_id_array)
         )
         
         # Stage 4: Construction du DataFrame enrichi
@@ -685,7 +1306,7 @@ async def _process_data_chunk(feed_addr: str, prog_monitor) -> pd.DataFrame:
         
         return pd.DataFrame(_enriched_data)
 
-def get_latest_modification_time(dir_path, ext=None):
+def _get_latest_modification_time(dir_path, ext=None):
     """
     Analyse récursive des timestamps de modification d'un répertoire.
     
