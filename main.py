@@ -112,10 +112,10 @@ from tqdm import tqdm                       # Barre de progression pour les bouc
 from tqdm.asyncio import tqdm as tqdm_async # Version asynchrone de tqdm
 from tqdm.asyncio import tqdm_asyncio       # Autre version asynchrone de tqdm
 
-# --- Envoie des mails ---
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+# --- Gestion des emails ---
+import smtplib                                 # Bibliothèque standard pour l'envoi d'emails via SMTP 
+from email.mime.text import MIMEText           # Gestion du contenu texte des emails
+from email.mime.multipart import MIMEMultipart # Construction d'emails multi-parties (texte, HTML, pièces jointes)
 
 # ====================================
 # CONSTANTES SYSTÈME
@@ -1531,7 +1531,105 @@ def _get_latest_modification_time(dir_path, ext=None):
     return _latest_ts
 
 class AlertManager:
+    """
+    Gestionnaire d'alertes par email pour les CVEs critiques.
+    
+    Implémente un système d'alertes configurable pour notifier les utilisateurs
+    des nouvelles vulnérabilités via email, avec support du formatage et
+    des règles de filtrage.
+    
+    Attributs
+    ---------
+    ``smtp_config`` (Dict): Configuration du serveur SMTP contenant :
+        - username: Identifiant de connexion
+        - password: Mot de passe d'application
+    ``alert_rules`` (List): Liste des règles de filtrage (non implémenté)
+        
+    Architecture technique
+    ---------------------
+    Le gestionnaire implémente plusieurs fonctionnalités:
+        - Formatage personnalisé des messages d'alerte
+        - Filtrage des CVEs selon différents critères
+        - Envoi d'emails via SMTP avec gestion des erreurs
+        - Support des destinataires multiples
+        
+    Pipeline de traitement
+    ---------------------
+    1. Sélection des CVEs selon les critères (ID ou score)
+    2. Formatage des messages d'alerte
+    3. Connexion au serveur SMTP
+    4. Envoi des emails avec monitoring
+        
+    Exemple d'utilisation
+    --------------------
+    ::
+
+        # Configuration SMTP
+        smtp_config = {
+            'username': 'alert@domain.com',
+            'password': 'app_password'
+        }
+        
+        # Initialisation
+        alert_mgr = AlertManager(smtp_config)
+        
+        # Envoi d'alertes
+        alerts = alert_mgr._check_cve_alerts(cve_data)
+        alert_mgr._send_alerts(alerts, ['user@domain.com'])
+            
+    Format des messages
+    -----------------
+    Le format des alertes inclut:
+        - Identifiant de la CVE
+        - Scores CVSS et EPSS
+        - Description détaillée
+        - Produits et versions affectés
+        - Lien vers le bulletin ANSSI
+        
+    Voir aussi
+    ----------
+        - ``_fetch_all_data``: Récupération des données CVE
+        - ``CVE_DataProcessor_Engine``: Moteur de traitement CVE
+        - ``MemCache``: Système de cache avec TTL
+    """
     def __init__(self, smtp_config: dict):
+        """
+        Initialise une nouvelle instance du gestionnaire d'alertes.
+        
+        Configure les paramètres SMTP et prépare le système d'alertes avec
+        ses réglages par défaut pour l'envoi des notifications CVE.
+        
+        Paramètres
+        ----------
+        ``smtp_config`` (Dict): Configuration du serveur SMTP contenant :
+            - username: Email d'envoi Gmail
+            - password: Mot de passe d'application Gmail
+        
+        Attributs initialisés
+        --------------------
+        ``smtp_config`` : Dict
+            Configuration SMTP stockée pour les envois futurs
+        
+        ``alert_rules`` : List
+            Liste vide pour les règles de filtrage futures
+            
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            smtp_config = {
+                'username': 'alert@gmail.com',
+                'password': 'app_specific_password'
+            }
+            
+            # Création du gestionnaire d'alertes
+            alert_manager = AlertManager(smtp_config)
+        
+        Note
+        ----
+        Le mot de passe doit être un mot de passe d'application Google
+        spécifique et non le mot de passe principal du compte.
+        """
         self.smtp_config = smtp_config
         self.alert_rules = []
 
@@ -1539,13 +1637,49 @@ class AlertManager:
         """
         Formate un message d'alerte pour une CVE spécifique.
         
+        Génère un message d'alerte structuré incluant toutes les informations
+        pertinentes sur la vulnérabilité dans un format lisible.
+        
         Paramètres
         ----------
-        ``cve`` (pd.Series): Données de la CVE
-        
+        ``cve`` (pd.Series): Données de la CVE contenant :
+            - Identifiant CVE
+            - Score CVSS
+            - Type CWE
+            - Description
+            - Informations sur le produit affecté
+            
         Retourne
         --------
-        str: Message formaté pour l'email
+        str: Message formaté contenant :
+            - En-tête d'alerte
+            - Informations critiques
+            - Détails techniques
+            - Instructions d'action
+            
+        Format du message
+        ---------------
+        Le message suit une structure en sections:
+            1. En-tête avec émojis
+            2. Identifiants et scores
+            3. Détails du produit affecté
+            4. Description complète
+            5. Lien vers plus d'informations
+            
+        Exemple de sortie
+        ----------------
+        ::
+        
+            ⚠️ ALERTE DE SÉCURITÉ ⚠️
+            
+            Identifiant : CVE-2024-1234
+            Score CVSS : 8.5
+            Type : CWE-119
+            ...
+            
+        Note
+        ----
+        Les champs manquants sont remplacés par 'Non spécifié'.
         """
         return f"""
         ⚠️ ALERTE DE SÉCURITÉ ⚠️
@@ -1571,13 +1705,54 @@ class AlertManager:
 
     def _check_cve_alerts(self, cve_data: pd.DataFrame, limit: int = None, cve_id: str = None) -> List[dict]:
         """
-        Vérifie les CVEs selon différents modes de sélection.
+        Analyse les CVEs et génère les alertes selon les critères spécifiés.
+        
+        Implémente différentes stratégies de sélection des CVEs à notifier:
+        - Par identifiant CVE spécifique
+        - Par limite des N plus critiques
+        - Toutes les CVEs disponibles
         
         Paramètres
         ----------
-        ``cve_data`` (pd.DataFrame): DataFrame des CVEs à analyser
+        ``cve_data`` (pd.DataFrame): DataFrame contenant les CVEs à analyser
         ``limit`` (int, optional): Nombre maximum d'alertes à générer
         ``cve_id`` (str, optional): Identifiant CVE spécifique à alerter
+        
+        Retourne
+        --------
+        List[Dict]: Liste des alertes formatées contenant pour chacune :
+            - subject: Sujet de l'email d'alerte
+            - body: Corps du message formaté
+        
+        Logique de sélection
+        -------------------
+        1. Si cve_id est spécifié :
+            - Recherche et alerte uniquement pour cette CVE
+        2. Si limit est spécifié :
+            - Trie par score CVSS décroissant
+            - Sélectionne les N premières CVEs
+        3. Sans paramètres :
+            - Traite toutes les CVEs disponibles
+        
+        Exemple d'utilisation
+        --------------------
+        ::
+
+            # Alerte pour une CVE spécifique
+            alerts = manager._check_cve_alerts(
+                cve_data, 
+                cve_id='CVE-2024-1234'
+            )
+            
+            # Top 5 des CVEs les plus critiques
+            alerts = manager._check_cve_alerts(
+                cve_data,
+                limit=5
+            )
+        
+        Note
+        ----
+        Les scores 'n/a' sont convertis en 0 pour le tri CVSS.
         """
         alerts = []
         
@@ -1607,6 +1782,53 @@ class AlertManager:
         return alerts
 
     def _send_alerts(self, alerts: List[dict], recipients: List[str]):
+        """
+        Envoie les alertes par email aux destinataires spécifiés.
+        
+        Gère la connexion SMTP, l'envoi des emails et le monitoring
+        du processus avec gestion des erreurs par destinataire.
+        
+        Paramètres
+        ----------
+        ``alerts`` (List[Dict]): Liste des alertes à envoyer contenant :
+            - subject: Sujet de l'email
+            - body: Corps du message formaté
+        ``recipients`` (List[str]): Liste des adresses email destinataires
+        
+        Pipeline d'envoi
+        --------------
+        1. Connexion au serveur SMTP avec TLS
+        2. Pour chaque alerte :
+            - Construction du message MIME
+            - Envoi à chaque destinataire
+            - Monitoring de la progression
+        3. Fermeture propre de la connexion
+        
+        Monitoring
+        ---------
+        Affiche dans la console :
+            - Nombre total d'alertes à envoyer
+            - Progression de l'envoi
+            - Statut par destinataire
+            - Erreurs éventuelles
+            
+        Exemple d'utilisation
+        --------------------
+        ::
+        
+            alerts = [
+                {
+                    'subject': '🚨 Alerte CVE-2024-1234',
+                    'body': 'Message formaté...'
+                }
+            ]
+            recipients = ['user1@domain.com', 'user2@domain.com']
+            alert_mgr._send_alerts(alerts, recipients)
+        
+        Note
+        ----
+        Utilise Gmail SMTP. Le password doit être un mot de passe d'application.
+        """
         if not alerts:
             print("❌ Aucune alerte à envoyer")
             return
@@ -1640,7 +1862,58 @@ class AlertManager:
         except Exception as e:
             print(f"❌ Erreur SMTP: {str(e)}")
 
-def _mail_sender(recipients, cve_id, limit):
+def _mail_sender(recipients: List[str], cve_id: str = None, limit: int = None):
+    """
+    Point d'entrée principal pour l'envoi d'alertes CVE par email.
+    
+    Orchestre le processus complet de génération et d'envoi d'alertes
+    en configurant le gestionnaire d'alertes et en récupérant les 
+    données CVE nécessaires.
+    
+    Paramètres
+    ----------
+    ``recipients`` (List[str]): Liste des adresses email destinataires
+    ``cve_id`` (str, optional): Identifiant CVE spécifique à notifier
+    ``limit`` (int, optional): Nombre maximum d'alertes à envoyer
+    
+    Pipeline de traitement
+    --------------------
+    1. Configuration SMTP avec identifiants Gmail
+    2. Initialisation du gestionnaire d'alertes
+    3. Récupération des données CVE
+    4. Génération des alertes selon les critères
+    5. Envoi des notifications
+    
+    Modes de fonctionnement
+    ----------------------
+    1. Mode CVE unique : 
+        _mail_sender(recipients, cve_id='CVE-2024-1234')
+    2. Mode N plus critiques : 
+        _mail_sender(recipients, limit=5)
+    3. Mode toutes CVEs : 
+        _mail_sender(recipients)
+    
+    Exemple d'utilisation
+    --------------------
+    ::
+
+        # Envoi d'une alerte pour une CVE spécifique
+        _mail_sender(
+            ['user@domain.com'], 
+            cve_id='CVE-2024-1234'
+        )
+        
+        # Envoi des 10 CVEs les plus critiques
+        _mail_sender(
+            ['user@domain.com'],
+            limit=10
+        )
+    
+    Note
+    ----
+    Les identifiants Gmail utilisés sont spécifiques au projet
+    et ne doivent pas être diffusés.
+    """
     # Configuration
     smtp_config = {
         'username': 'test.log.dv@gmail.com', # Ne pas diffuser ! Cet e-mail a été crée spécialement pour cet usage
