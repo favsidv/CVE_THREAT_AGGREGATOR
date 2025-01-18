@@ -2,7 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import BulletinTypeSelector from './BulletinTypeSelector';
 
-const COLORS = ['#ff453a', '#ff9f0a', '#0a84ff', '#30d158', '#bf5af2', '#64d2ff', '#ffd60a', '#5e5ce6'];
+const COLORS = [
+    '#013518', '#01561A', '#007C2E', '#019E2C', '#02B519',
+    '#78DA01', '#D3E700', '#F8FF00', '#FED001', '#FDB03F',
+    '#F5941D', '#F05C2A', '#ED1A23', '#B9000A', '#6F0006',
+    '#FF1683', '#FF83DA', '#FEBBDA', '#BFFAFE', '#6CEBFE',
+    '#3AC2FF', '#0090D8', '#0048A9', '#014383', '#014383',
+    '#0048A9', '#0090D8', '#3AC2FF', '#6CEBFE', '#BFFAFE',
+    '#FEBBDA', '#FF83DA', '#FF1683', '#6F0006', '#B9000A',
+    '#ED1A23', '#F05C2A', '#F5941D', '#FDB03F', '#FED001',
+    '#F8FF00', '#D3E700', '#78DA01', '#02B519', '#019E2C',
+    '#007C2E', '#01561A'
+];
 
 const ChartPie = () => {
     const [data, setData] = useState([]);
@@ -97,21 +108,7 @@ const ChartPie = () => {
                 <select 
                     value={displayCount}
                     onChange={(e) => setDisplayCount(Number(e.target.value))}
-                    style={{
-                        background: 'transparent',
-                        color: 'white',
-                        padding: '7px 20px 7px 10px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '7px',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        appearance: 'none',
-                        WebkitAppearance: 'none',
-                        MozAppearance: 'none',
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-                        backgroundRepeat: 'no-repeat',
-                        backgroundPosition: 'right 8px center'
-                    }}
+                    class="chart_wrapperSelectorPieChartTop"
                 >
                     <option value={0}>Tout</option>
                     <option value={50}>Top 50</option>
@@ -119,12 +116,10 @@ const ChartPie = () => {
                     <option value={20}>Top 20</option>
                     <option value={10}>Top 10</option>
                 </select>
-                <div>
-                    <BulletinTypeSelector 
-                        value={bulletinType} 
-                        onChange={setBulletinType}
-                    />
-                </div>
+                <BulletinTypeSelector 
+                    value={bulletinType} 
+                    onChange={setBulletinType}
+                />
             </div>
             <ResponsiveContainer>
                 <PieChart>
@@ -135,10 +130,14 @@ const ChartPie = () => {
                         cx="50%"
                         cy="50%"
                         outerRadius={150}
+                        innerRadius={50}
+                        cornerRadius={data.length > 10 ? 0 : 10}
+                        stroke={data.length > 10 ? 'rgba(255,255,255,0.1)' : '#242424'}
+                        strokeWidth={data.length > 10 ? 2 : 5}
                     >
                         {data.map((entry, index) => (
-                            <Cell 
-                                key={`cell-${index}`} 
+                            <Cell
+                                key={`cell-${index}`}
                                 fill={COLORS[index % COLORS.length]}
                             />
                         ))}

@@ -112,7 +112,7 @@ from tqdm import tqdm                       # Barre de progression pour les bouc
 from tqdm.asyncio import tqdm as tqdm_async # Version asynchrone de tqdm
 from tqdm.asyncio import tqdm_asyncio       # Autre version asynchrone de tqdm
 
-
+# --- Envoie des mails ---
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -1644,7 +1644,7 @@ def _mail_sender(recipients, cve_id, limit):
     # Configuration
     smtp_config = {
         'username': 'test.log.dv@gmail.com', # Ne pas diffuser ! Cet e-mail a été crée spécialement pour cet usage
-        'password': 'lcdf jkcc rrpw ozvp' # Mot de passe d'app
+        'password': 'lcdf jkcc rrpw ozvp' # Ne pas diffuser ! Ce mot de passe d'app a été crée spécialement pour cet usage
     }
 
     # Initialisation
@@ -1678,42 +1678,75 @@ if __name__ == "__main__":
     
     Exemple d'utilisation
     --------------------
-    Décommentez ces lignes pour lancer l'application en local::
-        ## _execute_build_process() # Build initial des assets
-        ^^
-        ||
-        ## _APP.run(debug=True, host="0.0.0.0", port=5000) # Démarrage du serveur
-        ^^
-        ||
-    Sinon, décommentez cette ligne pour enregistrer l'ensemble des données dans un dataframe au format CSV::
-        ## syncio.run(_fetch_all_data()) # Fichier de données consolidées
-        ^^
-        ||
-    Sinon, décommentez ces ligne afin de recevoir une notification par mail concernant un/des CVE(s)::
-        ## recipients = ['mai1', 'mail2', 'mail3', ...]
-        ^^
-        ||
-        ## _mail_sender(recipients, ...) # Suivant le mode voulu
-        ^^
-        ||
+    Décommentez chaque bloc de test et chaque ligne selon le cas/mode d'exécution.
+    Ne Décommentez pas les ## et ### ! Seuls les triples guillemets de chaque bloc doivent être détruits, avec les # selon le cas/mode d'exécution.
+
     Note
     ----
     Le mode debug ne doit pas être activé en production.
     """
-    ### Web app local
-    ## _execute_build_process() # Build initial des assets
-    ## _APP.run(debug=True, host="0.0.0.0", port=5000) # Démarrage du serveur
 
-    
+    ### Étape 1 : Extraction des Flux RSS
+    """
+    entries = CVE_DataProcessor_Engine()._decode_rss_stream("https://www.cert.ssi.gouv.fr/alerte/feed")
+    print(f"{len(entries)} données extraites:\n")
+    for entry, i in zip(entries,range(1,len(entries)+1)):
+        print(f"{i}. Title: {entry['title']}")
+    """
 
-    ### Génération d'un fichier CSV dans la racine du projet contenant le dataframe
-    ## asyncio.run(_fetch_all_data())
+    ### Étape 2 : Extraction des CVEs
+    """
+    async def _test_extraction_des_cves():
+        entries = CVE_DataProcessor_Engine()._decode_rss_stream("https://www.cert.ssi.gouv.fr/avis/feed")
+        async with CVE_DataProcessor_Engine() as engine:
+            cves = await engine._process_cve_batch(entries)
+            print(f"{len(cves)} CVEs extraits:\n")
+            i = 0
+            for cve in tqdm(cves, desc="\nProgression:", unit="CVEs"):
+                print(f"{i}. CVE: {cve['cve_id']}")
+                i += 1
 
-    ### Envoie d'une notification par mail d'un/de CVE(s)
-    ## recipients = ['mail1', 'mail2', ...] # Mail sur lequel recevoir la/les notification(s) (si un seul mail: ['mail1'])
-    ### Mode 1: Envoyer une CVE spécifique : remplacer <cve> par un identifiant, par exemple "CVE-2022-34718" (string)
-    ##_mail_sender(recipients,cve_id=<cve>)
-    ### Mode 2: Envoyer les n CVEs les plus critiques : remplacer <n> par un nombre entier (int)
-    ##_mail_sender(recipients,limit=<n>)
-    ### Mode 3: Envoyer toutes les CVEs (ATTENTION! Cela peut remplir votre messagerie inutilement...)
-    ##_mail_sender(recipients)
+    asyncio.run(_test_extraction_des_cves())
+            
+            # Utilisation de tqdm pour la barre de progression
+    """
+
+    ### Étape 3 : Enrichissement des CVE
+    """
+    data = asyncio.run(_fetch_all_data())
+    print("{")
+    for entries in data:
+        print(f"\n\t'Identifiant CVE' : {entries['Identifiant CVE']}\n\t'Type de bulletin' : {entries['Type de bulletin']}\n\t'Titre du bulletin (ANSSI)' : {entries['Titre du bulletin (ANSSI)']}\n\t'Date de publication' : {entries['Date de publication']}\n\t'Score CVSS' : {entries['Score CVSS']}\n\t'Base Severity' : {entries['Base Severity']}\n\t'Type CWE' : {entries['Type CWE']}\n\t'Score EPSS' : {entries['Score EPSS']}\n\t'Lien du bulletin (ANSSI)' : {entries['Lien du bulletin (ANSSI)']}\n\t'Description' : {entries['Description']}\n\t'Éditeur' : {entries['Éditeur']}\n\t'Produit' : {entries['Produit']}\n\t'Versions affectées' : {entries['Versions affectées']}\n"
+        )
+        print()
+    print("}")
+    """
+
+    ### Étape 4 : Consolidation des Données
+    """
+    ## Affiche un dataframe et génère un fichier CSV des CVEs consolidés à la racine du projet
+    async def _test_dataframe_and_csv():
+        data = await _fetch_all_data()
+        print(pd.DataFrame(data))
+
+    asyncio.run(_test_dataframe_and_csv())
+    """
+
+    ### Étape 5 : Interprétation et Visualisation
+    ## Web app local
+    """
+    _execute_build_process() # Build initial des assets
+    _APP.run(debug=True, host="0.0.0.0", port=5000) # Démarrage du serveur
+    """
+    ## ou cf. notebook.ipynb
+
+    ### Étape 6 : Génération d'Alertes et Notifications Email
+    """
+    recipients = ['mail1', 'mail2', ...] # Mail(s) sur le(s)quel(s) recevoir la/les notification(s) (si un seul mail: ['mail1'])
+    ## Mode 1: Envoyer une CVE spécifique : remplacer <cve> par un identifiant, par exemple "CVE-2022-34718" (string)
+    #_mail_sender(recipients,cve_id=<cve>)
+    ## Mode 2: Envoyer les n CVEs les plus critiques : remplacer <n> par un nombre entier (int)
+    #_mail_sender(recipients,limit=<n>)
+    ## Mode 3: Envoyer toutes les CVEs (ATTENTION! Cela peut remplir votre messagerie inutilement...)
+    #_mail_sender(recipients)
+    """

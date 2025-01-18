@@ -1,4 +1,3 @@
-// src/components/VersionAnalysis.jsx
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import BulletinTypeSelector from './BulletinTypeSelector';
@@ -15,12 +14,10 @@ const VersionAnalysis = () => {
         fetch('/fetch_data')
             .then(response => response.json())
             .then(jsonData => {
-                // Filtrer par type de bulletin
                 const filteredData = bulletinType === 'all' 
                     ? jsonData 
                     : jsonData.filter(item => item['Type de bulletin'] === bulletinType);
 
-                // Extraire la liste des éditeurs uniques
                 const uniqueVendors = [...new Set(filteredData
                     .map(item => item['Éditeur'])
                     .filter(v => v !== 'n/a')
@@ -37,12 +34,10 @@ const VersionAnalysis = () => {
             fetch('/fetch_data')
                 .then(response => response.json())
                 .then(jsonData => {
-                    // Filtrer par type de bulletin
                     const filteredData = bulletinType === 'all' 
                         ? jsonData 
                         : jsonData.filter(item => item['Type de bulletin'] === bulletinType);
 
-                    // Filtrer les produits pour l'éditeur sélectionné
                     const uniqueProducts = [...new Set(filteredData
                         .filter(item => item['Éditeur'] === selectedVendor)
                         .map(item => item['Produit'])
@@ -61,12 +56,10 @@ const VersionAnalysis = () => {
             fetch('/fetch_data')
                 .then(response => response.json())
                 .then(jsonData => {
-                    // Filtrer par type de bulletin
                     const filteredData = bulletinType === 'all' 
                         ? jsonData 
                         : jsonData.filter(item => item['Type de bulletin'] === bulletinType);
 
-                    // Analyser les versions
                     const versionData = new Map();
                     filteredData
                         .filter(item => 
@@ -97,31 +90,40 @@ const VersionAnalysis = () => {
         }
     }, [selectedVendor, selectedProduct, bulletinType]);
 
+    const CustomTooltip = ({ active, payload }) => {
+        if (active && payload && payload.length) {
+            const total = data.reduce((sum, item) => sum + item.count, 0);
+            const percentage = ((payload[0].value / total) * 100).toFixed(1);
+            
+            return (
+                <div style={{
+                    backgroundColor: '#242424',
+                    padding: '12px',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: 'white',
+                }}>
+                    <div>Version: {payload[0].payload.version}</div>
+                    <div>Occurrences: {payload[0].value}</div>
+                    <div>Pourcentage: {percentage}%</div>
+                </div>
+            );
+        }
+        return null;
+    };
+
     return (
-        <div style={{ width: '100%' }}>
-            <div style={{
-                marginBottom: '20px',
-                display: 'flex',
-                gap: '10px',
-                alignItems: 'center',
-                justifyContent: 'flex-end'
-            }}>
-                <BulletinTypeSelector 
-                    value={bulletinType} 
-                    onChange={setBulletinType}
-                />
+        <div>
+            <div style={{ display: 'flex', flexDirection: 'row', marginTop: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', marginRight: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'row' }}>
+                        <img src="/static/icons/chart.bar.svg" style={{ opacity: '0.5', marginLeft: '20px', width: '32px', height: 'auto', marginRight: '15px' }}/>
+                        <h2 style={{ color: 'white', fontSize: '25px', fontWeight: 'bold', marginRight: 'auto'}}>Analyse des Versions Affectées</h2>
+                    </div>
+                </div>
                 <select
                     value={selectedVendor}
                     onChange={(e) => setSelectedVendor(e.target.value)}
-                    style={{
-                        background: 'transparent',
-                        color: 'white',
-                        padding: '7px 20px 7px 10px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '7px',
-                        outline: 'none',
-                        cursor: 'pointer'
-                    }}
+                    className="chart_wrapperSelectorPieChartTop"
                 >
                     {vendors.map(vendor => (
                         <option key={vendor} value={vendor}>{vendor}</option>
@@ -130,26 +132,22 @@ const VersionAnalysis = () => {
                 <select
                     value={selectedProduct}
                     onChange={(e) => setSelectedProduct(e.target.value)}
-                    style={{
-                        background: 'transparent',
-                        color: 'white',
-                        padding: '7px 20px 7px 10px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '7px',
-                        outline: 'none',
-                        cursor: 'pointer'
-                    }}
+                    className="chart_wrapperSelectorPieChartTop"
                 >
                     {products.map(product => (
                         <option key={product} value={product}>{product}</option>
                     ))}
                 </select>
+                <BulletinTypeSelector 
+                    value={bulletinType} 
+                    onChange={setBulletinType}
+                />
             </div>
-            <div style={{ height: '400px' }}>
+            <div>
                 <ResponsiveContainer>
                     <BarChart
                         data={data}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                        margin={{ bottom: 30 }}
                     >
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                         <XAxis 
@@ -160,7 +158,7 @@ const VersionAnalysis = () => {
                             height={80}
                         />
                         <YAxis stroke="rgba(255,255,255,0.7)" />
-                        <Tooltip />
+                        <Tooltip content={<CustomTooltip />} />
                         <Bar dataKey="count" fill="#ff9f0a" />
                     </BarChart>
                 </ResponsiveContainer>

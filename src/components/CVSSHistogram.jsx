@@ -95,12 +95,10 @@ const CVSSHistogram = () => {
                         </div>
                     )}
                 </div>
-                <div>
-                    <BulletinTypeSelector 
-                        value={bulletinType} 
-                        onChange={setBulletinType}
-                    />
-                </div>
+                <BulletinTypeSelector 
+                    value={bulletinType} 
+                    onChange={setBulletinType}
+                />
             </div>
             <ResponsiveContainer>
                 <BarChart

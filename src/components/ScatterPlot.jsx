@@ -52,22 +52,19 @@ const ScatterPlot = () => {
     };
 
     return (
-        <div style={{ width: '100%', height: '400px' }}>
-            <div style={{
-                marginBottom: '20px',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '10px'
-            }}>
-                <BulletinTypeSelector 
-                    value={bulletinType} 
-                    onChange={setBulletinType}
-                />
+        <div>
+            <div style={{ display: 'flex', flexDirection: 'row', marginTop: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', marginRight: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'row' }}>
+                        <img src="/static/icons/chart.bar.svg" style={{ opacity: '0.5', marginLeft: '20px', width: '32px', height: 'auto', marginRight: '15px' }}/>
+                        <h2 style={{ color: 'white', fontSize: '25px', fontWeight: 'bold', marginRight: 'auto'}}>CVSS vs EPSS</h2>
+                    </div>
+                </div>
             </div>
             <ResponsiveContainer>
-                <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
+                <ScatterChart margin={{ left: 10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis 
+                    <XAxis
                         type="number" 
                         dataKey="cvss" 
                         name="CVSS" 
@@ -80,7 +77,7 @@ const ScatterPlot = () => {
                             style: { fill: 'rgba(255,255,255,0.7)' }
                         }}
                     />
-                    <YAxis 
+                    <YAxis
                         type="number" 
                         dataKey="epss" 
                         name="EPSS" 

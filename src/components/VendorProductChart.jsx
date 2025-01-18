@@ -54,40 +54,32 @@ const VendorProductChart = () => {
     };
 
     return (
-        <div style={{ width: '100%' }}>
-            <div style={{
-                marginBottom: '20px',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '10px'
-            }}>
-                <BulletinTypeSelector 
-                    value={bulletinType} 
-                    onChange={setBulletinType}
-                />
+        <div>
+            <div style={{ display: 'flex', flexDirection: 'row', marginTop: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', marginRight: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'row' }}>
+                        <img src="/static/icons/chart.bar.svg" style={{ opacity: '0.5', marginLeft: '20px', width: '32px', height: 'auto', marginRight: '15px' }}/>
+                        <h2 style={{ color: 'white', fontSize: '25px', fontWeight: 'bold', marginRight: 'auto'}}>Distribution des CVEs par Éditeur/Produit</h2>
+                    </div>
+                </div>
                 <select
                     value={mode}
                     onChange={(e) => setMode(e.target.value)}
-                    style={{
-                        background: 'transparent',
-                        color: 'white',
-                        padding: '7px 20px 7px 10px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '7px',
-                        outline: 'none',
-                        cursor: 'pointer'
-                    }}
+                    class="chart_wrapperSelectorPieChartTop"
                 >
                     <option value="vendor">Éditeurs</option>
                     <option value="product">Produits</option>
                 </select>
+                <BulletinTypeSelector 
+                    value={bulletinType} 
+                    onChange={setBulletinType}
+                />
             </div>
-            <div style={{ height: '400px' }}>
+            <div>
                 <ResponsiveContainer>
                     <BarChart
                         data={data}
                         layout="vertical"
-                        margin={{ top: 20, right: 30, left: 100, bottom: 5 }}
                     >
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                         <XAxis type="number" stroke="rgba(255,255,255,0.7)" />
