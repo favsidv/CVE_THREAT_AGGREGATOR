@@ -112,6 +112,11 @@ from tqdm import tqdm                       # Barre de progression pour les bouc
 from tqdm.asyncio import tqdm as tqdm_async # Version asynchrone de tqdm
 from tqdm.asyncio import tqdm_asyncio       # Autre version asynchrone de tqdm
 
+
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 # ====================================
 # CONSTANTES SYSTÈME
 # ====================================
@@ -1370,7 +1375,7 @@ async def _fetch_all_data():
     
     print("\n[DATA_FETCH]: Complete")
     # Sauvegarde pour analyse offline
-    _result_df.to_csv('dataframe.csv', encoding='utf-8-sig')
+    # _result_df.to_csv('dataframe.csv', encoding='utf-8-sig')
     return _result_df.to_dict(orient='records')
 
 async def _process_data_chunk(feed_addr: str, prog_monitor) -> pd.DataFrame:
@@ -1525,6 +1530,132 @@ def _get_latest_modification_time(dir_path, ext=None):
             _latest_ts = max(_latest_ts, _path_ptr.stat().st_mtime)
     return _latest_ts
 
+class AlertManager:
+    def __init__(self, smtp_config: dict):
+        self.smtp_config = smtp_config
+        self.alert_rules = []
+
+    def _format_alert_message(self, cve: pd.Series) -> str:
+        """
+        Formate un message d'alerte pour une CVE spécifique.
+        
+        Paramètres
+        ----------
+        ``cve`` (pd.Series): Données de la CVE
+        
+        Retourne
+        --------
+        str: Message formaté pour l'email
+        """
+        return f"""
+        ⚠️ ALERTE DE SÉCURITÉ ⚠️
+
+        Une nouvelle vulnérabilité a été détectée :
+
+        Identifiant : {cve['Identifiant CVE']}
+        Score CVSS : {cve['Score CVSS']}
+        Type : {cve.get('Type CWE', 'Non spécifié')}
+        
+        Produit affecté :
+        - Éditeur : {cve.get('Éditeur', 'Non spécifié')}
+        - Produit : {cve.get('Produit', 'Non spécifié')}
+        - Versions : {cve.get('Versions affectées', 'Non spécifié')}
+        
+        Description :
+        {cve.get('Description', 'Pas de description disponible')}
+        
+        Pour plus d'informations : {cve.get('Lien du bulletin (ANSSI)', '')}
+        
+        ⚡ Action requise : Veuillez évaluer et appliquer les correctifs nécessaires.
+        """
+
+    def _check_cve_alerts(self, cve_data: pd.DataFrame, limit: int = None, cve_id: str = None) -> List[dict]:
+        """
+        Vérifie les CVEs selon différents modes de sélection.
+        
+        Paramètres
+        ----------
+        ``cve_data`` (pd.DataFrame): DataFrame des CVEs à analyser
+        ``limit`` (int, optional): Nombre maximum d'alertes à générer
+        ``cve_id`` (str, optional): Identifiant CVE spécifique à alerter
+        """
+        alerts = []
+        
+        if cve_id:
+            cve_filtered = cve_data[cve_data['Identifiant CVE'] == cve_id]
+            if cve_filtered.empty:
+                print(f"⚠️ CVE {cve_id} non trouvée dans les données")
+                return []
+            data_to_process = cve_filtered
+        else:
+            data_to_process = cve_data.copy()
+            data_to_process['Score CVSS'] = pd.to_numeric(
+                data_to_process['Score CVSS'].replace('n/a', '0'), 
+                errors='coerce'
+            )
+            data_to_process = data_to_process.sort_values('Score CVSS', ascending=False)
+        
+        if limit:
+            data_to_process = data_to_process.head(limit)
+        
+        for _, cve in data_to_process.iterrows():
+            alerts.append({
+                'subject': f"🚨 Alerte CVE - {cve['Identifiant CVE']}",
+                'body': self._format_alert_message(cve)
+            })
+        
+        return alerts
+
+    def _send_alerts(self, alerts: List[dict], recipients: List[str]):
+        if not alerts:
+            print("❌ Aucune alerte à envoyer")
+            return
+
+        try:
+            server = smtplib.SMTP('smtp.gmail.com', 587)
+            server.starttls()
+            server.login(self.smtp_config['username'], self.smtp_config['password'])
+            
+            total_alerts = len(alerts)
+            print(f"\n📬 Envoi de {total_alerts} alerte(s)...")
+            
+            for idx, alert in enumerate(alerts, 1):
+                msg = MIMEMultipart()
+                msg['From'] = self.smtp_config['username']
+                msg['Subject'] = alert['subject']
+                msg.attach(MIMEText(alert['body'], 'plain'))
+                
+                for recipient in recipients:
+                    try:
+                        msg['To'] = recipient
+                        text = msg.as_string()
+                        server.sendmail(self.smtp_config['username'], recipient, text)
+                        print(f"✅ Alerte {idx}/{total_alerts} envoyée à {recipient}")
+                    except Exception as e:
+                        print(f"❌ Erreur d'envoi à {recipient}: {str(e)}")
+            
+            server.quit()
+            print("\n✨ Envoi des alertes terminé")
+            
+        except Exception as e:
+            print(f"❌ Erreur SMTP: {str(e)}")
+
+def _mail_sender(recipients, cve_id, limit):
+    # Configuration
+    smtp_config = {
+        'username': 'test.log.dv@gmail.com', # Ne pas diffuser ! Cet e-mail a été crée spécialement pour cet usage
+        'password': 'lcdf jkcc rrpw ozvp' # Mot de passe d'app
+    }
+
+    # Initialisation
+    alert_manager = AlertManager(smtp_config)
+
+    # Récupération des données
+    raw_data = asyncio.run(_fetch_all_data())
+    cve_df = pd.DataFrame(raw_data)
+
+    alert_manager._send_alerts(alert_manager._check_cve_alerts(cve_id, limit), recipients)
+
 if __name__ == "__main__":
     """
     Point d'entrée principal de l'application web.
@@ -1540,14 +1671,14 @@ if __name__ == "__main__":
     
     Pour utiliser
     ------------
-    1. Décommentez ce bloc (retirez les "##")
+    1. Décommentez les lignes correspondantss (retirez uniquement les "##" selon les cas/modes)
     2. Exécutez le script : python main.py
-    3. Accédez à http://localhost:5000
+    3. Accédez à http://localhost:5000 sur un navigateur internet quelconque
+       si vous êtes dans le cas de l'affichage de la web app local
     
     Exemple d'utilisation
     --------------------
     Décommentez ces lignes pour lancer l'application en local::
-
         ## _execute_build_process() # Build initial des assets
         ^^
         ||
@@ -1558,11 +1689,31 @@ if __name__ == "__main__":
         ## syncio.run(_fetch_all_data()) # Fichier de données consolidées
         ^^
         ||
+    Sinon, décommentez ces ligne afin de recevoir une notification par mail concernant un/des CVE(s)::
+        ## recipients = ['mai1', 'mail2', 'mail3', ...]
+        ^^
+        ||
+        ## _mail_sender(recipients, ...) # Suivant le mode voulu
+        ^^
+        ||
     Note
     ----
     Le mode debug ne doit pas être activé en production.
     """
+    ### Web app local
     ## _execute_build_process() # Build initial des assets
     ## _APP.run(debug=True, host="0.0.0.0", port=5000) # Démarrage du serveur
 
-    ## asyncio.run(_fetch_all_data()) # Fichier de données consolidées
+    
+
+    ### Génération d'un fichier CSV dans la racine du projet contenant le dataframe
+    ## asyncio.run(_fetch_all_data())
+
+    ### Envoie d'une notification par mail d'un/de CVE(s)
+    ## recipients = ['mail1', 'mail2', ...] # Mail sur lequel recevoir la/les notification(s) (si un seul mail: ['mail1'])
+    ### Mode 1: Envoyer une CVE spécifique : remplacer <cve> par un identifiant, par exemple "CVE-2022-34718" (string)
+    ##_mail_sender(recipients,cve_id=<cve>)
+    ### Mode 2: Envoyer les n CVEs les plus critiques : remplacer <n> par un nombre entier (int)
+    ##_mail_sender(recipients,limit=<n>)
+    ### Mode 3: Envoyer toutes les CVEs (ATTENTION! Cela peut remplir votre messagerie inutilement...)
+    ##_mail_sender(recipients)
