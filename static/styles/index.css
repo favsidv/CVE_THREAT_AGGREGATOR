@@ -1,0 +1,265 @@
+/* INIT */
+/* INIT */
+/* INIT */
+/* INIT */
+/* INIT */
+
+:root {
+    --bg-primary: #000000;
+    --bg-secondary: #121212;
+    --bg-tertiary: #1e1e1e;
+    --surface: #242424;
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-tertiary: rgba(255, 255, 255, 0.5);
+    --border: rgba(255, 255, 255, 0.1);
+    --primary: #0a84ff;
+    --danger: #ff453a;
+    --warning: #ff9f0a;
+    --success: #30d158;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Inter";
+    font-weight: 500;
+    background: #050505;
+    color: var(--text-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+::placeholder {
+    opacity: 0.5;
+}
+
+#overallBody {
+    padding: 150px 30px 130px 30px;
+}
+
+.container {
+    max-width: 1500px;
+    margin: 0 auto;
+}
+
+/* LOADING */
+/* LOADING */
+/* LOADING */
+/* LOADING */
+/* LOADING */
+
+.loading {
+    z-index: 2000;
+    display: flex;
+    position: fixed;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-primary);
+}
+
+.loading_spinner {
+    aspect-ratio: 1;
+    box-sizing: border-box;
+    width: 80px;
+    border: 10px solid #000;
+    background: 
+        radial-gradient(farthest-side,#fff 98%,#0000) 50%/20px 20px,
+        radial-gradient(farthest-side,#fff 98%,#0000) 50%/20px 20px,
+        radial-gradient(farthest-side,#fff 98%,#0000) 50%/20px 20px,
+        radial-gradient(farthest-side,#fff 98%,#0000) 50%/20px 20px,
+        radial-gradient(farthest-side,#fff 98%,#0000) 50%/20px 20px,
+        linear-gradient(#fff 0 0) 50%/100% 10px,
+        linear-gradient(#fff 0 0) 50%/10px 100%,
+      #000;
+    background-repeat: no-repeat;
+    filter: blur(4px) contrast(10);
+    animation: l13 0.8s infinite;
+}
+
+@keyframes l13 {
+    100% {background-position: 50% -20px, -20px 50%, 60px 50%, 50% 60px, 50%, 50%, 50%}
+}
+
+/* HEADER */
+/* HEADER */
+/* HEADER */
+/* HEADER */
+/* HEADER */
+
+header {
+    position: fixed;
+    display: flex;
+    z-index: 99;    
+    height: 80px;
+}
+
+.header_brand {
+    display: flex;
+    flex-direction: row;
+    margin: auto auto auto 30px;
+    z-index: 99;
+}
+
+.header_brandLogo  {
+    margin-right: 15px;
+    z-index: 99;
+    width: auto;
+    height: 30px;
+}
+
+.header_brandText  {
+    display: block;
+    margin: auto;
+    z-index: 99;
+    width: auto;
+    height: 25px;
+}
+
+/* TITLES */
+
+.title {
+    margin-top: 70px;
+    font: 40px "Inter";
+    font-weight: 700;
+}
+
+
+
+
+
+
+
+
+/* Custom Table Styles */
+
+.selector-bulletin {
+    background-color: #0a84ff !important;
+}
+
+.selector-bulletin::after {
+    content: '›';
+    position: absolute;
+    font: 20px "Manrope";
+    margin-top: -4px;
+    margin-left: -2px;
+    transform: rotate(-90deg);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.recharts-responsive-container {
+    background-color: #161617;
+    border: solid 2px rgba(255, 255, 255, 0.033);
+    border-radius: 18px;
+    margin-top: 20px;
+    padding: 20px;
+    height: 500px !important;
+}
+
+.chart_wrapper {
+    margin-top: 40px;
+    background-color: rgba(255, 255, 255, 0.04);
+    border: solid 1px rgba(255, 255, 255, 0.05);
+    border-radius: 25px;
+    padding: 10px;
+}
+
+
+
+
+
+
+
+/* Modal for Details */
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    padding: 2rem;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    max-width: 800px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+    padding: 1.5rem;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1rem;
+}
+
+.modal-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.modal-body {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.detail-item {
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.detail-label {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+}
+
+.detail-value {
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+/* Chart */

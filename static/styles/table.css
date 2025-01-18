@@ -1,0 +1,304 @@
+/* SEARCH */
+/* SEARCH */
+/* SEARCH */
+/* SEARCH */
+/* SEARCH */
+
+.table_searchContainerIcon {
+    position: absolute;
+    margin: auto;
+    width: 18px;
+    height: auto;
+    transform: translate(12px, 9.5px);
+    opacity: 0.2;
+    pointer-events: none;
+}
+
+.table_searchContainerInput {
+    padding: 0.5rem 1rem;
+    padding-inline-start: 40px;
+    width: 200px;
+    font: 15px "Inter";
+    color: white;
+    background: transparent;
+    border: solid 1px rgba(255, 255, 255, 0.1);
+    border-radius: 25px;
+    outline: none;
+}
+
+.table_searchContainerInput:focus {
+    border: solid 1px rgba(255, 255, 255, 0.85);
+}
+
+.table_searchContainer .table_searchContainerInput:focus {
+    outline: solid 4px rgba(255, 255, 255, 0.125);
+}
+
+/* TABLE */
+/* TABLE */
+/* TABLE */
+/* TABLE */
+/* TABLE */
+
+.table_frame {
+    margin-top: 15px;
+    width: 100%;
+    border-radius: 10px;
+    border-collapse: collapse;
+    outline: solid 1px  hsl(240 3.7% 15.9%);
+    user-select: none;
+    cursor: pointer;
+}
+
+.table_frame th {
+    padding: 8px 8px 8px 0;
+    font: 15px "Inter";
+    font-weight: 700;
+    text-align: left;
+    color: rgba(255, 255, 255, 0.3);
+    text-transform: uppercase;
+}
+
+.table_frame th:hover {
+    color: white;
+}
+
+.table_frame td {
+    font-size: 15px;
+    border-top: 1px solid var(--border);
+}
+
+.table_frameCve {
+    width: 180px;
+}
+
+.table_frameType {
+    width: 80px;
+}
+
+.table_frameTitleWrap {
+    position: relative;
+    max-width: 100px;
+    height: 50px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.table_frameTitleWrap p {
+    margin: auto 0;
+}
+
+.table_frameTitleWrap div {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 70px;
+    height: 50px;
+    background: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 1) 80%);
+}
+
+.table_frameDate {
+    width: 180px;
+}
+
+.table_frameScoreCVSS {
+    width: 125px;
+}
+
+.table_frame tr:hover {
+    transition: 0.2s;
+}
+
+.table_frame tr:hover:not(.table_frameTrException) {
+    opacity: 0.7;
+}
+
+.sort-icon {
+    margin-left: 0.5rem;
+    opacity: 0.5;
+}
+
+.table_frame th.sorted .sort-icon {
+    opacity: 1;
+}
+
+.table_frame th.sorted-asc .sort-icon::after {
+    content: '›';
+    position: absolute;
+    margin: -4px 0 0 -2px;
+    font: 20px "Manrope";
+    transform: rotate(-90deg);
+}
+
+.loader {
+  width: 60px;
+  display: flex;
+  align-items: flex-start;
+  aspect-ratio: 1;
+}
+.loader:before,
+.loader:after {
+  content: "";
+  flex: 1;
+  aspect-ratio: 1;
+  --g: conic-gradient(from -90deg at 10px 10px,#fff 90deg,#0000 0);
+  background: var(--g), var(--g), var(--g);
+  filter: drop-shadow(30px 30px 0 #fff);
+  animation: l20 1s infinite;
+}
+.loader:after {
+  transform: scaleX(-1);
+}
+@keyframes l20 {
+   0%   {background-position:0     0, 10px 10px, 20px 20px}
+   33%  {background-position:10px  10px}
+   66%  {background-position:0    20px,10px 10px,20px 0   }
+   100% {background-position:0     0, 10px 10px, 20px 20px}
+}
+.table_frame th.sorted-desc .sort-icon::after {
+    content: '›';
+    position: absolute;
+    font: 20px "Manrope";
+    margin-top: -5px;
+    transform: rotate(90deg);
+}
+
+/* PAGINATION */
+/* PAGINATION */
+/* PAGINATION */
+/* PAGINATION */
+/* PAGINATION */
+
+.table_pagination {
+    display: flex;
+    margin-top: 15px;
+    color: var(--text-secondary);
+    justify-content: space-between;
+    align-items: center;
+}
+
+.table_paginationRowSelector {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: white;
+}
+
+.table_paginationRowSelectorWrapper {
+    position: relative;
+}
+
+.table_paginationRowSelectorWrapper::after {
+    content: '›';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    font: 20px "Manrope";
+    transform: translateY(-50%) rotate(90deg);
+    pointer-events: none;
+    opacity: 0.33;
+}
+
+.table_paginationRowSelectorWrapperSelect {
+    padding: 8px 30px 8px 10px;
+    padding-inline-start: 14px;
+    font: 15px "Inter";
+    font-weight: 600;
+    color: white;
+    border: solid 1px  hsl(240 3.7% 15.9%);
+    border-radius: 7px;
+    background: transparent;
+    appearance: none;
+    outline: 0;
+    cursor: pointer;
+}
+
+.table_paginationRowSelectorWrapperSelect:focus {
+    border: solid 1px rgba(255, 255, 255, 0.85);
+}
+
+.table_paginationControls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.table_paginationControls p {
+    font-size: 15px;
+    margin-right: 15px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.table_paginationControlsRange {
+    color: white !important;
+}
+
+.table_paginationControlsBtn {
+    display: flex;
+    padding: 8px;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    border: solid 1px  hsl(240 3.7% 15.9%);
+    border-radius: 10px;
+    background: transparent;
+    transition: color 0.2s;
+    cursor: pointer;
+}
+
+.table_paginationControlsBtn:hover:not(:disabled) {
+    color: var(--text-primary);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.table_paginationControlsBtn:disabled {
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+}
+
+/* BADGE */
+/* BADGE */
+/* BADGE */
+/* BADGE */
+/* BADGE */
+
+.table_severityBadge {
+    display: inline-flex;
+    padding: 5px 10px;
+    border-radius: 30px;
+    align-items: center;
+    justify-content: center;
+}
+
+.table_severityBadge.critical {
+    background: rgb(93, 44, 236, 0.15);
+    color: rgb(104, 57, 246);
+}
+
+.table_severityBadge.high {
+    background: rgba(255, 10, 10, 0.15);
+    color: var(--danger);
+}
+
+.table_severityBadge.medium {
+    background: rgba(255, 104, 10, 0.15);
+    color: var(--warning);
+}
+
+.table_severityBadge.low {
+    background: rgba(48, 209, 88, 0.15);
+    color: var(--success);
+}
+
+.table_severityBadge.nan {
+    background: rgba(255, 255, 255, 0.075);
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.table_severityBadge p {
+    font-size: 12px;
+    font-weight: 600;
+}

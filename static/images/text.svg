@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 160">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #fff;
+        font-size: 200px;
+      }
+
+      .cls-2 {
+        font-family: TestSohne-Extraleicht, 'Test Söhne';
+        letter-spacing: 0em;
+      }
+
+      .cls-3, .cls-4 {
+        font-family: TestSohne-Kraftig, 'Test Söhne';
+      }
+
+      .cls-4 {
+        letter-spacing: 0em;
+      }
+    </style>
+  </defs>
+  <text class="cls-1" transform="translate(11.8 152.57)"><tspan class="cls-3" x="0" y="0">AN</tspan><tspan class="cls-4" x="287.2" y="0">S</tspan><tspan class="cls-3" x="407.2" y="0">SI</tspan><tspan class="cls-2" x="577.99" y="0">API</tspan></text>
+</svg>
