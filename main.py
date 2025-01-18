@@ -153,7 +153,7 @@ def _compute_threat_vector(raw_cvss_ptr: str) -> str:
     """
     try:
         _threat_level_reg = float(raw_cvss_ptr)
-        if _threat_level_reg <= 3:
+        if _threat_level_reg >= 0 and _threat_level_reg <= 3:
             # Risque faible (0x01)
             return "Faible"
         elif 4 <= _threat_level_reg <= 6:
@@ -434,6 +434,7 @@ class CVE_DataProcessor_Engine:
         ::
 
             feed_url = "https://www.cert.ssi.gouv.fr/alerte/feed"
+            engine = CVE_DataProcessor_Engine()
             entries = engine._decode_rss_stream(feed_url)
             for entry in entries:
                 print(f"Title: {entry['title']}, Type: {entry['type']}")
@@ -1048,15 +1049,7 @@ class MemCache:
 
 # Initialisation du cache système global
 _SYS_CACHE = MemCache()
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
-#######################################_check_build_status fait mais pas le reste#######################################
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
+
 def _check_build_status():
     """
     Vérifie si une reconstruction des assets front-end est nécessaire.
@@ -1104,13 +1097,44 @@ def _execute_build_process():
     """
     Exécute le processus de build des assets front-end.
     
-    Cette fonction:
-    1. Vérifie si une reconstruction est nécessaire;
-    2. Installe les dépendances npm si nécessaire;
-    3. Lance le processus de build;
-    4. Gère les erreurs potentielles.
+    Gère l'installation des dépendances npm et le build des assets
+    avec gestion des erreurs et logging du processus.
     
-    Les erreurs sont capturées et loggées pour le debugging.
+    Processus de build
+    -----------------
+    1. Vérification si build nécessaire
+    2. Installation npm si node_modules absent
+    3. Exécution du build avec npm run build
+    4. Logging des résultats et erreurs
+    
+    Actions exécutées
+    ----------------
+    - Installation npm: ``npm install``
+    - Build process: ``npm run build``
+    
+    Exemple d'utilisation
+    --------------------
+    ::
+
+        # Build automatique au démarrage
+        _execute_build_process()
+        
+        # Build manuel si nécessaire
+        if _check_build_status():
+            _execute_build_process()
+    
+    Messages de statut
+    -----------------
+    - "[BUILD_STATUS]: Up-to-date"
+    - "[NPM_INIT]: Installing dependencies"
+    - "[BUILD_PROCESS]: Starting"
+    - "[BUILD_PROCESS]: Success"
+    - "[BUILD_ERROR]: {error}"
+    - "[SYSTEM_ERROR]: {error}"
+    
+    Note
+    ----
+    Les erreurs sont capturées et loggées sans arrêter l'application.
     """
     try:
         if not _check_build_status():
@@ -1135,14 +1159,37 @@ _APP = Flask(__name__, static_folder='static')
 @_APP.before_request
 def _init_system():
     """
-    Middleware d'initialisation du système.
+    Middleware d'initialisation du système Flask.
     
-    Cette fonction est exécutée avant chaque requête et assure:
-        - L'initialisation unique du système au premier démarrage;
-        - La reconstruction des assets si nécessaire.
+    S'exécute avant chaque requête pour s'assurer que le système
+    est correctement initialisé et que les assets sont à jour.
     
-    Note:
-        Utilise un flag sur l'objet app pour éviter les initialisations multiples
+    Opérations réalisées
+    -------------------
+    - Vérification du flag d'initialisation
+    - Build des assets front-end si nécessaire
+    - Marquage du système comme initialisé
+    
+    Processus d'initialisation
+    -------------------------
+    1. Vérification de _sys_initialized sur l'app
+    2. Si non initialisé :
+        - Exécution du build process
+        - Définition du flag d'initialisation
+    
+    Exemple d'utilisation
+    --------------------
+    ::
+
+        @_APP.before_request
+        def _init_system():
+            if not hasattr(_APP, '_sys_initialized'):
+                _execute_build_process()
+                _APP._sys_initialized = True
+    
+    Note
+    ----
+    Utilise un flag sur l'objet app pour éviter les initialisations multiples.
     """
     if not hasattr(_APP, '_sys_initialized'):
         _execute_build_process()
@@ -1151,10 +1198,37 @@ def _init_system():
 @_APP.route('/')
 def _serve_index():
     """
-    Route principale servant la page d'accueil.
+    Route principale servant la page d'accueil de l'application.
     
-    Returns:
-        str: Page HTML générée à partir du template index.html
+    Génère et retourne la page HTML principale à partir du template index.html.
+    Cette route est le point d'entrée de l'interface utilisateur.
+    
+    Route
+    -----
+    GET /
+        Point d'accès principal de l'application web
+    
+    Retourne
+    --------
+    str: Page HTML générée à partir du template index.html
+    
+    Template utilisé
+    --------------
+    - Fichier: index.html
+    - Dossier: templates/
+    
+    Exemple d'utilisation
+    --------------------
+    ::
+
+        @_APP.route('/')
+        def _serve_index():
+            return render_template('index.html')
+    
+    Note
+    ----
+    Aucune donnée n'est passée au template, le chargement des données
+    se fait via des appels API JavaScript côté client.
     """
     return render_template('index.html')
 
@@ -1163,16 +1237,44 @@ async def _handle_data_request():
     """
     Endpoint API pour la récupération des données CVE.
     
-    Cette route:
-    1. Utilise le cache système pour optimiser les performances;
-    2. Déclenche la récupération des données si nécessaire;
-    3. Gère les erreurs de manière gracieuse.
+    Retourne les données CVE enrichies en utilisant le cache système.
+    En cas d'erreur, retourne les dernières données valides du cache.
     
-    Returns:
-        Response: Données JSON contenant les CVEs
-        
-    Note:
-        En cas d'erreur, retourne les dernières données valides du cache
+    Route
+    -----
+    GET /fetch_data
+        Endpoint pour récupérer les CVEs enrichies
+    
+    Retourne
+    --------
+    Response: Réponse HTTP JSON contenant :
+        - Liste des CVEs avec métadonnées
+        - Données enrichies MITRE et EPSS
+        - Scores et classifications
+    
+    Processus de traitement
+    ----------------------
+    1. Tentative de récupération via le cache
+    2. Si échec du cache :
+        - Nouvelle récupération avec _fetch_all_data
+        - Mise en cache des nouvelles données
+    3. En cas d'erreur :
+        - Retour des dernières données valides
+        - Si cache vide, retour liste vide
+    
+    Exemple d'utilisation
+    --------------------
+    ::
+
+        # Appel API côté client
+        fetch('/fetch_data')
+            .then(response => response.json())
+            .then(data => console.log(data))
+    
+    Note
+    ----
+    Les erreurs sont gérées silencieusement pour assurer
+    la continuité du service même en cas de problème.
     """
     try:
         return jsonify(await _SYS_CACHE._get_or_fetch(_fetch_all_data))
@@ -1184,19 +1286,46 @@ async def _fetch_all_data():
     """
     Pipeline principal de récupération et traitement des données CVE.
     
-    Ce pipeline:
-    1. Parse les flux RSS de l'ANSSI;
-    2. Extrait les CVEs pertinentes;
-    3. Enrichit les données via MITRE et EPSS;
-    4. Construit un DataFrame normalisé.
+    Implémente le pipeline complet de collecte, enrichissement et 
+    normalisation des données CVE depuis les sources ANSSI.
     
-    Architecture:
-        - Traitement asynchrone pour optimiser les performances;
-        - Gestion de la mémoire par chunks;
-        - Monitoring de la progression.
+    Retourne
+    --------
+    List[Dict]: Données CVE enrichies et normalisées contenant :
+        - Métadonnées du bulletin ANSSI
+        - Données MITRE (CVSS, CWE)
+        - Scores EPSS
+        - Classifications et métriques
     
-    Returns:
-        list: Liste des CVEs enrichies au format dictionnaire
+    Sources de données
+    ----------------
+    Flux RSS ANSSI :
+        - ``https://www.cert.ssi.gouv.fr/avis/feed``
+        - ``https://www.cert.ssi.gouv.fr/alerte/feed``
+    
+    Pipeline de traitement
+    --------------------
+    1. Pré-calcul du nombre total de CVEs
+    2. Allocation mémoire optimisée
+    3. Pour chaque flux RSS:
+        - Décodage et parsing du flux
+        - Traitement des CVEs par lots
+        - Enrichissement via MITRE et EPSS
+    4. Consolidation et normalisation finale
+    
+    Exemple d'utilisation
+    --------------------
+    ::
+
+        data = await _fetch_all_data()
+        df = pd.DataFrame(data)
+        print(f"Nombre de CVEs: {len(df)}")
+    
+    Note
+    ----
+    - Utilise une barre de progression pour le monitoring
+    - Sauvegarde le DataFrame final en CSV pour analyse offline
+    - Optimise la mémoire avec un traitement par chunks
     """
     # URLs des flux RSS de l'ANSSI
     _RSS_ADDR_ARRAY = [
@@ -1241,25 +1370,71 @@ async def _fetch_all_data():
     
     print("\n[DATA_FETCH]: Complete")
     # Sauvegarde pour analyse offline
-    _result_df.to_csv('dataframe.csv')
+    _result_df.to_csv('dataframe.csv', encoding='utf-8-sig')
     return _result_df.to_dict(orient='records')
 
 async def _process_data_chunk(feed_addr: str, prog_monitor) -> pd.DataFrame:
     """
     Traite un chunk de données RSS et enrichit les CVEs associées.
     
-    Cette fonction implémente un pipeline de traitement en plusieurs étages:
-    1. Décodage du flux RSS source;
-    2. Extraction des CVEs mentionnées;
-    3. Enrichissement parallèle via MITRE et EPSS;
-    4. Construction d'un DataFrame normalisé.
+    Implémente un pipeline de traitement multi-étages pour transformer
+    et enrichir les données CVE d'un flux RSS spécifique.
     
-    Arguments:
-        feed_addr (str): URL du flux RSS à traiter
-        prog_monitor: Instance de tqdm pour le suivi de progression
-        
-    Returns:
-        pd.DataFrame: DataFrame contenant les CVEs enrichies
+    Paramètres
+    ----------
+    ``feed_addr`` (str): URL du flux RSS ANSSI à traiter
+    ``prog_monitor`` (tqdm): Instance de la barre de progression
+    
+    Retourne
+    --------
+    pd.DataFrame: DataFrame enrichi contenant :
+        - Métadonnées du bulletin
+        - Données MITRE et EPSS
+        - Scores et classifications
+    
+    Pipeline de traitement
+    --------------------
+    1. Décodage et parsing du flux RSS source
+    2. Extraction des CVEs mentionnées
+    3. Enrichissement parallèle :
+        - Métadonnées MITRE
+        - Scores EPSS
+    4. Construction du DataFrame normalisé
+    
+    Structure de sortie
+    -----------------
+    ::
+
+        DataFrame[
+            "Titre du bulletin (ANSSI)",
+            "Type de bulletin",
+            "Date de publication",
+            "Identifiant CVE",
+            "Score CVSS",
+            "Base Severity",
+            "Type CWE",
+            "Score EPSS",
+            "Lien du bulletin (ANSSI)",
+            "Description",
+            "Éditeur",
+            "Produit",
+            "Versions affectées"
+        ]
+    
+    Exemple d'utilisation
+    -------------------
+    ::
+
+        with tqdm(total=total_cves) as progress:
+            df = await _process_data_chunk(
+                "https://www.cert.ssi.gouv.fr/avis/feed",
+                progress
+            )
+            print(f"CVEs traitées: {len(df)}")
+    
+    Note
+    ----
+    Retourne un DataFrame vide en cas d'erreur ou si aucune CVE n'est trouvée.
     """
     async with CVE_DataProcessor_Engine() as _engine_ptr:
         # Stage 1: Décodage initial du flux RSS
@@ -1310,15 +1485,39 @@ def _get_latest_modification_time(dir_path, ext=None):
     """
     Analyse récursive des timestamps de modification d'un répertoire.
     
-    Cette fonction parcourt récursivement un répertoire pour trouver
-    le fichier modifié le plus récemment, avec filtrage optionnel par extension.
+    Parcourt un répertoire et ses sous-dossiers pour trouver le fichier 
+    modifié le plus récemment, avec filtrage optionnel par extension.
     
-    Arguments:
-        dir_path (str): Chemin du répertoire à analyser
-        ext (str, optional): Extension de fichier à filtrer
+    Paramètres
+    ----------
+    ``dir_path`` (str): Chemin du répertoire à analyser
+    ``ext`` (str, optional): Extension de fichier à filtrer (ex: '.js')
+    
+    Retourne
+    --------
+    float: Timestamp Unix de la modification la plus récente
+    
+    Processus d'analyse
+    -----------------
+    1. Parcours récursif du répertoire (via Path.rglob)
+    2. Filtrage optionnel par extension
+    3. Extraction des timestamps de modification
+    4. Sélection du timestamp le plus récent
+    
+    Exemple d'utilisation
+    --------------------
+    ::
+
+        # Tous les fichiers
+        ts = get_latest_modification_time('src/')
         
-    Returns:
-        float: Timestamp de la modification la plus récente
+        # Uniquement les .js
+        ts = get_latest_modification_time('src/', ext='.js')
+    
+    Note
+    ----
+    Retourne 0 si le répertoire est vide ou si aucun fichier
+    ne correspond à l'extension demandée.
     """
     _latest_ts = 0
     for _path_ptr in Path(dir_path).rglob('*'):
@@ -1327,6 +1526,43 @@ def _get_latest_modification_time(dir_path, ext=None):
     return _latest_ts
 
 if __name__ == "__main__":
-    # Point d'entrée principal de l'application
-    _execute_build_process() # Build initial des assets
-    _APP.run(debug=True, host="0.0.0.0", port=5000) # Démarrage du serveur
+    """
+    Point d'entrée principal de l'application web.
+    
+    Pour démarrer l'application en local, décommentez l'ensemble du bloc.
+    Lance le build initial des assets et démarre le serveur Flask.
+    
+    Configuration serveur
+    -------------------
+    - Mode debug activé
+    - Écoute sur toutes les interfaces (0.0.0.0)
+    - Port 5000
+    
+    Pour utiliser
+    ------------
+    1. Décommentez ce bloc (retirez les "##")
+    2. Exécutez le script : python main.py
+    3. Accédez à http://localhost:5000
+    
+    Exemple d'utilisation
+    --------------------
+    Décommentez ces lignes pour lancer l'application en local::
+
+        ## _execute_build_process() # Build initial des assets
+        ^^
+        ||
+        ## _APP.run(debug=True, host="0.0.0.0", port=5000) # Démarrage du serveur
+        ^^
+        ||
+    Sinon, décommentez cette ligne pour enregistrer l'ensemble des données dans un dataframe au format CSV::
+        ## syncio.run(_fetch_all_data()) # Fichier de données consolidées
+        ^^
+        ||
+    Note
+    ----
+    Le mode debug ne doit pas être activé en production.
+    """
+    ## _execute_build_process() # Build initial des assets
+    ## _APP.run(debug=True, host="0.0.0.0", port=5000) # Démarrage du serveur
+
+    ## asyncio.run(_fetch_all_data()) # Fichier de données consolidées
