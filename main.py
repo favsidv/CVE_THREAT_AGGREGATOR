@@ -1960,12 +1960,10 @@ if __name__ == "__main__":
     """
 
     ### Étape 1 : Extraction des Flux RSS
-    """
     entries = CVE_DataProcessor_Engine()._decode_rss_stream("https://www.cert.ssi.gouv.fr/alerte/feed")
     print(f"{len(entries)} données extraites:\n")
     for entry, i in zip(entries,range(1,len(entries)+1)):
         print(f"{i}. Title: {entry['title']}")
-    """
 
     ### Étape 2 : Extraction des CVEs
     """
@@ -1980,8 +1978,6 @@ if __name__ == "__main__":
                 i += 1
 
     asyncio.run(_test_extraction_des_cves())
-            
-            # Utilisation de tqdm pour la barre de progression
     """
 
     ### Étape 3 : Enrichissement des CVE
